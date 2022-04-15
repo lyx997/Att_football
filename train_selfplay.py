@@ -83,7 +83,7 @@ def main(arg_dict):
     p.start()
     processes.append(p)
     for rank in range(arg_dict["num_processes"]):
-        if arg_dict["env"] == "11_vs_11_kaggle":
+        if arg_dict["env"] == "11_vs_11_competition":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
             p = mp.Process(target=actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
@@ -102,7 +102,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_kaggle",    
+        "env": "11_vs_11_competition",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
