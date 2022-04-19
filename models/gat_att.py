@@ -102,8 +102,8 @@ class Model(nn.Module):
         right_player_ws1 = self.fc_att1_attack_ws(right_team_state_embed)#(1,11,64)
         player_ws1 = torch.cat([player_right_ws1_repeat, right_player_ws1], dim=-1)
         player_att1 = F.leaky_relu(self.fc_att1_attack_as(player_ws1))
-        player_att1 = F.gumbel_softmax(player_att1, dim=1, hard=True) #(1,11,1)
-        right_att1_player_embed = torch.bmm(player_att1.permute(0,2,1), right_player_ws1)
+        player_att1 = F.softmax(player_att1, dim=1) #(1,11,1)
+        right_att1_player_embed = F.elu(torch.bmm(player_att1.permute(0,2,1), right_player_ws1))
         player_right_embed = torch.cat([player_right_ws1, right_att1_player_embed],dim=-1)
 
         left_team_right_repeat = state_dict["left_repeat"]
@@ -119,9 +119,9 @@ class Model(nn.Module):
 
         left_team_ws1 = torch.cat([left_team_right_ws1_repeat, right_left_ws1], dim=-1)
         left_team_att1 = F.leaky_relu(self.fc_att1_attack_as(left_team_ws1))
-        left_team_att1 = F.gumbel_softmax(left_team_att1, dim=1, hard=True) #(1*10,11,1)
+        left_team_att1 = F.softmax(left_team_att1, dim=1) #(1*10,11,1)
 
-        right_att1_left_embed = torch.bmm(left_team_att1.permute(0,2,1), right_left_ws1)
+        right_att1_left_embed = F.elu(torch.bmm(left_team_att1.permute(0,2,1), right_left_ws1))
         right_att1_left_embed = right_att1_left_embed.view(horizon*batch, n_left, -1)#(1,10,64)
         left_right_embed = torch.cat([left_team_right_ws1, right_att1_left_embed], dim=-1)
 
@@ -135,21 +135,13 @@ class Model(nn.Module):
         player_att2 = F.gumbel_softmax(player_att2, dim=1, hard=True)#(1,10,1)
 
         
-        player_att1 = player_att1.permute(0,2,1)
         player_att2 = player_att2.permute(0,2,1)
         left_team_att1 = left_team_att1.view(horizon*batch, n_left, n_right)
 
         left_player_atted_embed = torch.bmm(player_att2, left_team_state_embed).view(horizon, batch, -1)
-        right_player_atted_embed = torch.bmm(player_att1, right_team_state_embed).view(horizon, batch, -1)
 
-        right_left_player_att1 = torch.bmm(player_att2, left_team_att1)
-        right_left_player_atted_embed = torch.bmm(right_left_player_att1, right_team_state_embed).view(horizon,batch, -1)
-
-        
         cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, 
-                    left_closest_state_embed, right_closest_state_embed,
-                    left_player_atted_embed, right_player_atted_embed, right_left_player_atted_embed,
-                    ], -1)
+                    left_closest_state_embed, right_closest_state_embed, left_player_atted_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         out = cat

@@ -50,21 +50,15 @@ def main(arg_dict):
     fe_att_def = fe_att_def.FeatureEncoder()
     arg_dict["feature_dims"] = fe_att_def.get_feature_dims()
 
-    fe_no_ball = importlib.import_module("encoder.encoder_basic")
-    fe_no_ball = fe_no_ball.FeatureEncoder()
-    
     model_att = importlib.import_module("models.gat_att")
     model_def = importlib.import_module("models.gat_def")
-    model_no_ball = importlib.import_module("models.conv1d")
     cpu_device = torch.device('cpu')
 
     center_model_att = model_att.Model(arg_dict)
     center_model_def = model_def.Model(arg_dict)
-    center_model_no_ball = model_no_ball.Model(arg_dict)
     
     att_optimization_step = 0
     def_optimization_step = 0
-    no_ball_optimization_step = 0
 
     model_att_dict = {
         'optimization_step': att_optimization_step,
@@ -76,39 +70,30 @@ def main(arg_dict):
         'model_state_dict': center_model_def.state_dict(),
         'optimizer_state_dict': center_model_def.optimizer.state_dict(),
     }
-    model_no_ball_dict = {
-        'optimization_step': no_ball_optimization_step,
-        'model_state_dict': center_model_no_ball.state_dict(),
-        'optimizer_state_dict': center_model_no_ball.optimizer.state_dict(),
-    }
-
-    att_path = arg_dict["log_dir"]+f"/model_{att_optimization_step}.tar"
+    
+    att_path = arg_dict["log_dir"]+f"/model_att_{att_optimization_step}.tar"
     torch.save(model_att_dict, att_path)
-    def_path = arg_dict["log_dir"]+f"/model_{def_optimization_step}.tar"
+    def_path = arg_dict["log_dir"]+f"/model_def_{def_optimization_step}.tar"
     torch.save(model_def_dict, def_path)
-    no_ball_path = arg_dict["log_dir"]+f"/model_{no_ball_optimization_step}.tar"
-    torch.save(model_no_ball_dict, no_ball_path)
+
         
     center_model_att.share_memory()
     center_model_def.share_memory()
-    center_model_no_ball.share_memory()
 
-    center_model = [center_model_att, center_model_def, center_model_no_ball]
+    center_model = [center_model_att, center_model_def]
 
     att_data_queue = mp.Queue()
     att_signal_queue = mp.Queue()
     def_data_queue = mp.Queue()
     def_signal_queue = mp.Queue()
-    no_ball_data_queue = mp.Queue()
-    no_ball_signal_queue = mp.Queue()
 
-    data_queue = [att_data_queue, def_data_queue, no_ball_data_queue]
-    signal_queue = [att_signal_queue, def_signal_queue, no_ball_signal_queue]
+    data_queue = [att_data_queue, def_data_queue]
+    signal_queue = [att_signal_queue, def_signal_queue]
 
     summary_queue = mp.Queue()
     
     processes = [] 
-    for i in range(3):
+    for i in range(2):
         p = mp.Process(target=learner, args=(center_model[i], data_queue[i], signal_queue[i], summary_queue, arg_dict))
         p.start()
         processes.append(p)
@@ -137,7 +122,7 @@ if __name__ == '__main__':
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
         "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
-        "batch_size": 32,   
+        "batch_size": 12,   
         "buffer_size": 6,
         "rollout_len": 30,
 
@@ -160,14 +145,10 @@ if __name__ == '__main__':
 
         "encoder" : "encoder_gat3",
         "rewarder" : "rewarder_basic",
-        "model" : "gat_att_def3",#add left right closest
+        #"model" : "gat_att_def3",#add left right closest
         "algorithm" : "ppo",
 
         "env_evaluation":'logs/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)
-    
-    
-        
-        

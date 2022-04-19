@@ -11,8 +11,8 @@ from tensorboardX import SummaryWriter
 
 from actor import *
 from learner import *
-#from evaluator_with_hard import evaluator
-from evaluator import evaluator
+from evaluator_with_hard import evaluator
+#from evaluator import evaluator
 from datetime import datetime, timedelta
 
 
@@ -123,7 +123,7 @@ if __name__ == '__main__':
         "summary_game_window" : 10, 
         "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
-        "trained_model_path" : 'logs/[04-01]22.16.37/model_79525440.tar', # use when you want to continue traning from given model.
+        "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
@@ -133,7 +133,7 @@ if __name__ == '__main__':
         "model" : "gat_att_def3",#add left right closest
         "algorithm" : "ppo",
 
-        "env_evaluation":'logs/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

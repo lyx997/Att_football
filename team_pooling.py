@@ -7,52 +7,43 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
-
 class Model(nn.Module):
     def __init__(self, arg_dict, device=None):
         super(Model, self).__init__()
-        self.device=None
         if device:
             self.device = device
-        self.arg_dict = arg_dict
 
         self.fc_player = nn.Linear(arg_dict["feature_dims"]["player"],64)  
         self.fc_ball = nn.Linear(arg_dict["feature_dims"]["ball"],64)
-        self.fc_left = nn.Linear(arg_dict["feature_dims"]["left_team"],48)
-        self.fc_right  = nn.Linear(arg_dict["feature_dims"]["right_team"],48)
-        self.fc_left_closest = nn.Linear(arg_dict["feature_dims"]["left_team_closest"],48)
-        self.fc_right_closest = nn.Linear(arg_dict["feature_dims"]["right_team_closest"],48)
-        
-        self.conv1d_left = nn.Conv1d(48, 36, 1, stride=1)
-        self.conv1d_right = nn.Conv1d(48, 36, 1, stride=1)
-        self.fc_left2 = nn.Linear(36*10,96)
-        self.fc_right2 = nn.Linear(36*11,96)
-        self.fc_cat = nn.Linear(96+96+64+64+48+48,256)
-        
+        self.fc_left = nn.Linear(arg_dict["feature_dims"]["left_team"],64)
+        self.fc_right  = nn.Linear(arg_dict["feature_dims"]["right_team"],64)
+        self.fc_left_closest = nn.Linear(arg_dict["feature_dims"]["left_team_closest"],32)
+        self.fc_right_closest = nn.Linear(arg_dict["feature_dims"]["right_team_closest"],32)
+        self.fc_cat = nn.Linear(256+64,arg_dict["lstm_size"])
         self.norm_player = nn.LayerNorm(64)
         self.norm_ball = nn.LayerNorm(64)
-        self.norm_left = nn.LayerNorm(48)
-        self.norm_left2 = nn.LayerNorm(96)
-        self.norm_left_closest = nn.LayerNorm(48)
-        self.norm_right = nn.LayerNorm(48)
-        self.norm_right2 = nn.LayerNorm(96)
-        self.norm_right_closest = nn.LayerNorm(48)
-        self.norm_cat = nn.LayerNorm(256)
+        self.norm_left = nn.LayerNorm(64)
+        self.norm_left_closest = nn.LayerNorm(32)
+        self.norm_right = nn.LayerNorm(64)
+        self.norm_right_closest = nn.LayerNorm(32)
+        self.norm_cat = nn.LayerNorm(arg_dict["lstm_size"])
         
-        self.lstm  = nn.LSTM(256,256)
+        self.lstm  = nn.LSTM(arg_dict["lstm_size"],arg_dict["lstm_size"])
 
-        self.fc_pi_a1 = nn.Linear(256, 164)
-        self.fc_pi_a2 = nn.Linear(164, 12)
-        self.norm_pi_a1 = nn.LayerNorm(164)
+        self.fc_pi_a1 = nn.Linear(arg_dict["lstm_size"], 128)
+        self.fc_pi_a2 = nn.Linear(128, 12)
+        self.norm_pi_a1 = nn.LayerNorm(128)
         
-        self.fc_pi_m1 = nn.Linear(256, 164)
-        self.fc_pi_m2 = nn.Linear(164, 8)
-        self.norm_pi_m1 = nn.LayerNorm(164)
+        self.fc_pi_m1 = nn.Linear(arg_dict["lstm_size"], 128)
+        self.fc_pi_m2 = nn.Linear(128, 8)
+        self.norm_pi_m1 = nn.LayerNorm(128)
 
-        self.fc_v1 = nn.Linear(256, 164)
-        self.norm_v1 = nn.LayerNorm(164)
-        self.fc_v2 = nn.Linear(164, 1,  bias=False)
+        self.fc_v1 = nn.Linear(arg_dict["lstm_size"], 128)
+        self.norm_v1 = nn.LayerNorm(128)
+        self.fc_v2 = nn.Linear(128, 1,  bias=False)
+        self.pool = nn.AdaptiveAvgPool2d((1,None))
         self.optimizer = optim.Adam(self.parameters(), lr=arg_dict["learning_rate"])
+
         
     def forward(self, state_dict):
         player_state = state_dict["player"]          
@@ -65,22 +56,14 @@ class Model(nn.Module):
         
         player_embed = self.norm_player(self.fc_player(player_state))
         ball_embed = self.norm_ball(self.fc_ball(ball_state))
-        left_team_embed = self.norm_left(self.fc_left(left_team_state))  # horizon, batch, n, dim
+        left_team_embed = self.norm_left(self.fc_left(left_team_state))
         left_closest_embed = self.norm_left_closest(self.fc_left_closest(left_closest_state))
         right_team_embed = self.norm_right(self.fc_right(right_team_state))
         right_closest_embed = self.norm_right_closest(self.fc_right_closest(right_closest_state))
         
-        [horizon, batch_size, n_player, dim] = left_team_embed.size()
-        left_team_embed = left_team_embed.view(horizon*batch_size, n_player, dim).permute(0,2,1)         # horizon * batch, dim1, n
-        left_team_embed = F.relu(self.conv1d_left(left_team_embed)).permute(0,2,1)                       # horizon * batch, n, dim2
-        left_team_embed = left_team_embed.reshape(horizon*batch_size, -1).view(horizon,batch_size,-1)    # horizon, batch, n * dim2
-        left_team_embed = F.relu(self.norm_left2(self.fc_left2(left_team_embed)))
-        
-        right_team_embed = right_team_embed.view(horizon*batch_size, n_player+1, dim).permute(0,2,1)    # horizon * batch, dim1, n
-        right_team_embed = F.relu(self.conv1d_right(right_team_embed)).permute(0,2,1)                   # horizon * batch, n * dim2
-        right_team_embed = right_team_embed.reshape(horizon*batch_size, -1).view(horizon,batch_size,-1)
-        right_team_embed = F.relu(self.norm_right2(self.fc_right2(right_team_embed)))
-        
+        left_team_embed = self.pool(left_team_embed).squeeze(2)
+        right_team_embed = self.pool(right_team_embed).squeeze(2)
+
         cat = torch.cat([player_embed, ball_embed, left_team_embed, right_team_embed, left_closest_embed, right_closest_embed], 2)
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
@@ -88,7 +71,7 @@ class Model(nn.Module):
         
         a_out = F.relu(self.norm_pi_a1(self.fc_pi_a1(out)))
         a_out = self.fc_pi_a2(a_out)
-        logit = a_out + (avail-1)*1e7
+        logit = a_out + (avail-1)*1e8
         prob = F.softmax(logit, dim=2)
         
         prob_m = F.relu(self.norm_pi_m1(self.fc_pi_m1(out)))
@@ -174,8 +157,7 @@ class Model(nn.Module):
             prob_batch.append(prob_lst)
             done_batch.append(done_lst)
             need_move_batch.append(need_move_lst)
-        
-
+            
         s = {
           "player": torch.tensor(s_player_batch, dtype=torch.float, device=self.device).permute(1,0,2),
           "ball": torch.tensor(s_ball_batch, dtype=torch.float, device=self.device).permute(1,0,2),
@@ -206,6 +188,8 @@ class Model(nn.Module):
                                          torch.tensor(done_batch, dtype=torch.float, device=self.device).permute(1,0,2), \
                                          torch.tensor(prob_batch, dtype=torch.float, device=self.device).permute(1,0,2), \
                                          torch.tensor(need_move_batch, dtype=torch.float, device=self.device).permute(1,0,2)
-
+        
+        
         return s, a, m, r, s_prime, done_mask, prob, need_move
-    
+
+                
