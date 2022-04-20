@@ -35,7 +35,7 @@ class Model(nn.Module):
         self.fc_att2_attack_ws = nn.Linear(96,96)
         self.fc_att2_attack_as = nn.Linear(192,1)
 
-        self.fc_cat = nn.Linear(64*3+48*8,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(64*3+48*3,128)
 
 
         self.norm_player_situation = nn.LayerNorm(64)
@@ -47,17 +47,17 @@ class Model(nn.Module):
         self.norm_left_state = nn.LayerNorm(48)
         self.norm_right_state = nn.LayerNorm(48)
 
-        self.norm_cat = nn.LayerNorm(arg_dict["lstm_size"])
+        self.norm_cat = nn.LayerNorm(128)
         
-        self.fc_pi_a1 = nn.Linear(arg_dict["lstm_size"], 164)
+        self.fc_pi_a1 = nn.Linear(128, 164)
         self.fc_pi_a2 = nn.Linear(164, 12)
         self.norm_pi_a1 = nn.LayerNorm(164)
         
-        self.fc_pi_m1 = nn.Linear(arg_dict["lstm_size"], 164)
+        self.fc_pi_m1 = nn.Linear(128, 164)
         self.fc_pi_m2 = nn.Linear(164, 8)
         self.norm_pi_m1 = nn.LayerNorm(164)
 
-        self.fc_v1 = nn.Linear(arg_dict["lstm_size"], 164)
+        self.fc_v1 = nn.Linear(128, 164)
         self.norm_v1 = nn.LayerNorm(164)
         self.fc_v2 = nn.Linear(164, 1,  bias=False)
         self.optimizer = optim.Adam(self.parameters(), lr=arg_dict["learning_rate"])
@@ -70,10 +70,10 @@ class Model(nn.Module):
 
         player_state = state_dict["player_state"]          
         ball_state = state_dict["ball_state"]              
-        left_team_state = state_dict["left_team_state"]
-        left_closest_state = state_dict["left_closest"]
-        right_team_state = state_dict["right_team_state"]  
-        right_closest_state = state_dict["right_closest"]
+        left_team_state = state_dict["right_team_state"]
+        left_closest_state = state_dict["right_closest"]
+        right_team_state = state_dict["left_team_state"]  
+        right_closest_state = state_dict["left_closest"]
         avail = state_dict["avail"]
         
         match_sit_embed = F.relu(self.norm_match_situation(self.fc_match_situation(match_situation)))
@@ -133,10 +133,8 @@ class Model(nn.Module):
         player_ws2 = torch.cat([player_left_ws2_repeat, left_player_ws2], dim=-1)
         player_att2 = F.leaky_relu(self.fc_att2_attack_as(player_ws2))
         player_att2 = F.gumbel_softmax(player_att2, dim=1, hard=True)#(1,10,1)
-
         
         player_att2 = player_att2.permute(0,2,1)
-        left_team_att1 = left_team_att1.view(horizon*batch, n_left, n_right)
 
         left_player_atted_embed = torch.bmm(player_att2, left_team_state_embed).view(horizon, batch, -1)
 
@@ -145,7 +143,6 @@ class Model(nn.Module):
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         out = cat
-
 
         a_out = F.relu(self.norm_pi_a1(self.fc_pi_a1(out)))
         a_out = self.fc_pi_a2(a_out)

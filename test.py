@@ -10,7 +10,3 @@ env_right = football_env.create_environment(env_name="11_vs_11_competition", rep
 
 obs = env_right.reset()
 
-for i in range(1000):
-    
-
-pass

@@ -11,8 +11,8 @@ from tensorboardX import SummaryWriter
 
 from actor import *
 from learner import *
-#from evaluator_with_hard import evaluator
-from evaluator import evaluator
+from evaluator_with_hard_att_def import evaluator
+#from evaluator import evaluator
 from datetime import datetime, timedelta
 
 
@@ -94,14 +94,14 @@ def main(arg_dict):
     
     processes = [] 
     for i in range(2):
-        p = mp.Process(target=learner, args=(center_model[i], data_queue[i], signal_queue[i], summary_queue, arg_dict))
+        p = mp.Process(target=learner, args=(i, center_model[i], data_queue[i], signal_queue[i], summary_queue, arg_dict))
         p.start()
         processes.append(p)
     for rank in range(arg_dict["num_processes"]):
         if arg_dict["env"] == "11_vs_11_selfplay":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
-            p = mp.Process(target=actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=seperate_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
     for i in range(5):
@@ -117,7 +117,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_competition",    
+        "env": "11_vs_11_hard_stochastic",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
@@ -126,7 +126,6 @@ if __name__ == '__main__':
         "buffer_size": 6,
         "rollout_len": 30,
 
-        "lstm_size" : 256,
         "k_epoch" : 3,
         "learning_rate" : 0.0001,
         "gamma" : 0.993,
@@ -138,17 +137,17 @@ if __name__ == '__main__':
         "summary_game_window" : 10, 
         "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
-        "trained_model_path" : 'logs/[04-01]22.16.37/model_79525440.tar', # use when you want to continue traning from given model.
+        "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat3",
-        "rewarder" : "rewarder_basic",
+        "encoder" : "encoder_gat_att_def_seperate",
+        "rewarder" : "rewarder_att_def",
         #"model" : "gat_att_def3",#add left right closest
         "algorithm" : "ppo",
 
-        "env_evaluation":'logs/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

@@ -9,68 +9,80 @@ from torch.distributions import Categorical
 import torch.multiprocessing as mp 
 from tensorboardX import SummaryWriter
 
-def write_summary(writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst, v_loss_lst, \
+def write_summary(i, writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst, v_loss_lst, \
                   entropy_lst, move_entropy_lst, optimization_step, self_play_board, win_evaluation, score_evaluation):
     win, score, tot_reward, game_len = [], [], [], []
     loop_t, forward_t, wait_t = [], [], []
 
-    for i in range(arg_dict["summary_game_window"]):
-        game_data = summary_queue.get()
-        a,b,c,d,opp_num,t1,t2,t3 = game_data
-        if arg_dict["env"] == "11_vs_11_kaggle":
-            if opp_num in self_play_board:
-                self_play_board[opp_num].append(a)
+    if i == 0:
+        for i in range(arg_dict["summary_game_window"]):
+            game_data = summary_queue.get()
+            a,b,c,d,opp_num,t1,t2,t3 = game_data
+            if arg_dict["env"] == "11_vs_11_kaggle":
+                if opp_num in self_play_board:
+                    self_play_board[opp_num].append(a)
+                else:
+                    self_play_board[opp_num] = [a]
+
+            if 'env_evaluation' in arg_dict and opp_num==arg_dict['env_evaluation']:
+                win_evaluation.append(a)
+                score_evaluation.append(b)
             else:
-                self_play_board[opp_num] = [a]
+                win.append(a)
+                score.append(b)
+                tot_reward.append(c)
+                game_len.append(d)
+                loop_t.append(t1)
+                forward_t.append(t2)
+                wait_t.append(t3)
 
-        if 'env_evaluation' in arg_dict and opp_num==arg_dict['env_evaluation']:
-            win_evaluation.append(a)
-            score_evaluation.append(b)
-        else:
-            win.append(a)
-            score.append(b)
-            tot_reward.append(c)
-            game_len.append(d)
-            loop_t.append(t1)
-            forward_t.append(t2)
-            wait_t.append(t3)
-            
-    writer.add_scalar('game/win_rate', float(np.mean(win)), n_game)
-    writer.add_scalar('game/score', float(np.mean(score)), n_game)
-    writer.add_scalar('game/reward', float(np.mean(tot_reward)), n_game)
-    writer.add_scalar('game/game_len', float(np.mean(game_len)), n_game)
-    writer.add_scalar('train/step', float(optimization_step), n_game)
-    writer.add_scalar('time/loop', float(np.mean(loop_t)), n_game)
-    writer.add_scalar('time/forward', float(np.mean(forward_t)), n_game)
-    writer.add_scalar('time/wait', float(np.mean(wait_t)), n_game)
-    writer.add_scalar('train/loss', np.mean(loss_lst), n_game)
-    writer.add_scalar('train/pi_loss', np.mean(pi_loss_lst), n_game)
-    writer.add_scalar('train/v_loss', np.mean(v_loss_lst), n_game)
-    writer.add_scalar('train/entropy', np.mean(entropy_lst), n_game)
-    writer.add_scalar('train/move_entropy', np.mean(move_entropy_lst), n_game)
-
-    mini_window = int(arg_dict['summary_game_window'])
-    if len(win_evaluation)>=mini_window:
-        writer.add_scalar('game/win_rate_evaluation', float(np.mean(win_evaluation)), n_game)
-        writer.add_scalar('game/score_evaluation', float(np.mean(score_evaluation)), n_game)
-        win_evaluation, score_evaluation = [], []
+        writer.add_scalar('game/win_rate', float(np.mean(win)), n_game)
+        writer.add_scalar('game/score', float(np.mean(score)), n_game)
+        writer.add_scalar('game/reward', float(np.mean(tot_reward)), n_game)
+        writer.add_scalar('game/game_len', float(np.mean(game_len)), n_game)
+        writer.add_scalar('train/step', float(optimization_step), n_game)
+        writer.add_scalar('time/loop', float(np.mean(loop_t)), n_game)
+        writer.add_scalar('time/forward', float(np.mean(forward_t)), n_game)
+        writer.add_scalar('time/wait', float(np.mean(wait_t)), n_game)
     
-    for opp_num in self_play_board:
-        if len(self_play_board[opp_num]) >= mini_window:
-            label = 'self_play/'+opp_num
-            writer.add_scalar(label, np.mean(self_play_board[opp_num][:mini_window]), n_game)
-            self_play_board[opp_num] = self_play_board[opp_num][mini_window:]
+        writer.add_scalar('train/att_loss', np.mean(loss_lst), n_game)
+        writer.add_scalar('train/att_pi_loss', np.mean(pi_loss_lst), n_game)
+        writer.add_scalar('train/att_v_loss', np.mean(v_loss_lst), n_game)
+        writer.add_scalar('train/att_entropy', np.mean(entropy_lst), n_game)
+        writer.add_scalar('train/att_move_entropy', np.mean(move_entropy_lst), n_game)
+
+        mini_window = int(arg_dict['summary_game_window'])
+        if len(win_evaluation)>=mini_window:
+            writer.add_scalar('game/win_rate_evaluation', float(np.mean(win_evaluation)), n_game)
+            writer.add_scalar('game/score_evaluation', float(np.mean(score_evaluation)), n_game)
+            win_evaluation, score_evaluation = [], []
+    
+        for opp_num in self_play_board:
+            if len(self_play_board[opp_num]) >= mini_window:
+                label = 'self_play/'+opp_num
+                writer.add_scalar(label, np.mean(self_play_board[opp_num][:mini_window]), n_game)
+                self_play_board[opp_num] = self_play_board[opp_num][mini_window:]
+
+    else:
+        writer.add_scalar('train/def_loss', np.mean(loss_lst), n_game)
+        writer.add_scalar('train/def_pi_loss', np.mean(pi_loss_lst), n_game)
+        writer.add_scalar('train/def_v_loss', np.mean(v_loss_lst), n_game)
+        writer.add_scalar('train/def_entropy', np.mean(entropy_lst), n_game)
+        writer.add_scalar('train/def_move_entropy', np.mean(move_entropy_lst), n_game)
 
     return win_evaluation, score_evaluation
 
-def save_model(model, arg_dict, optimization_step, last_saved_step):
+def save_model(i, model, arg_dict, optimization_step, last_saved_step):
     if optimization_step >= last_saved_step + arg_dict["model_save_interval"]:
         model_dict = {
             'optimization_step': optimization_step,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': model.optimizer.state_dict(),
         }
-        path = arg_dict["log_dir"]+"/model_"+str(optimization_step)+".tar"
+        if i == 0:
+            path = arg_dict["log_dir"]+"/model_att_"+str(optimization_step)+".tar"
+        else:
+            path = arg_dict["log_dir"]+"/model_def_"+str(optimization_step)+".tar"
         torch.save(model_dict, path)
         print("Model saved :", path)
         return optimization_step
@@ -88,9 +100,13 @@ def get_data(queue, arg_dict, model):
         data.append(mini_batch)
     return data
 
-def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
+def learner(i, center_model, queue, signal_queue, summary_queue, arg_dict):
     print("Learner process started")
-    imported_model = importlib.import_module("models." + arg_dict["model"])
+    if i==0:
+        imported_model = importlib.import_module("models.gat_att")
+    else:
+        imported_model = importlib.import_module("models.gat_def")
+
     imported_algo = importlib.import_module("algos." + arg_dict["algorithm"])
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = imported_model.Model(arg_dict, device)
@@ -117,13 +133,17 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
     
     while True:
         if queue.qsize() > arg_dict["batch_size"]*arg_dict["buffer_size"]:
-            last_saved_step = save_model(model, arg_dict, optimization_step, last_saved_step)
+            last_saved_step = save_model(i, model, arg_dict, optimization_step, last_saved_step)
             
             signal_queue.put(1)
             data = get_data(queue, arg_dict, model)
             loss, pi_loss, v_loss, entropy, move_entropy = algo.train(model, data)
             optimization_step += arg_dict["batch_size"]*arg_dict["buffer_size"]*arg_dict["k_epoch"]
-            print("step :", optimization_step, "loss", loss, "data_q", queue.qsize(), "summary_q", summary_queue.qsize())
+
+            if i == 0:
+                print("Attack model: step :", optimization_step, "loss", loss, "data_q", queue.qsize(), "summary_q", summary_queue.qsize())
+            else:
+                print("Defence model: step :", optimization_step, "loss", loss, "data_q", queue.qsize(), "summary_q", summary_queue.qsize())
             
             loss_lst.append(loss)
             pi_loss_lst.append(pi_loss)
@@ -136,7 +156,7 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
                 print("warning. data remaining. queue size : ", queue.qsize())
             
             if summary_queue.qsize() > arg_dict["summary_game_window"]:
-                win_evaluation, score_evaluation = write_summary(writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst, 
+                win_evaluation, score_evaluation = write_summary(i, writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst, 
                                                                  v_loss_lst, entropy_lst, move_entropy_lst, optimization_step, 
                                                                  self_play_board, win_evaluation, score_evaluation)
                 loss_lst, pi_loss_lst, v_loss_lst, entropy_lst, move_entropy_lst = [], [], [], [], []

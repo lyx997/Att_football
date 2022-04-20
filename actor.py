@@ -39,6 +39,177 @@ def get_action(a_prob, m_prob):
     
     return real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m
 
+def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_dict):
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    print("Actor process {} started".format(actor_num))
+    fe_module = importlib.import_module("encoders." + arg_dict["encoder"])
+    rewarder = importlib.import_module("rewarders." + arg_dict["rewarder"])
+    imported_model_att = importlib.import_module("models.gat_att")
+    imported_model_def = importlib.import_module("models.gat_def")
+    
+    fe = fe_module.FeatureEncoder()
+    state_to_tensor = fe_module.state_to_tensor
+    
+    model_att = imported_model_att.Model(arg_dict)
+    model_att.load_state_dict(center_model[0].state_dict())
+
+    model_def = imported_model_def.Model(arg_dict)
+    model_def.load_state_dict(center_model[1].state_dict())
+    
+    env_left = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir='/tmp/football', \
+                                          number_of_left_players_agent_controls=1,
+                                          number_of_right_players_agent_controls=0,
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False)
+    env_right = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir='/tmp/football', \
+                                          number_of_left_players_agent_controls=0,
+                                          number_of_right_players_agent_controls=1,
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False)
+    n_epi = 0
+    rollout_att = []
+    rollout_def = []
+    
+    while True: # episode loop
+        seed = random.random()
+        if seed < 0.5:
+            env_left.reset()   
+            obs = env_left.observation()
+            our_team = 0
+        else:
+            env_right.reset()   
+            obs = env_right.observation()
+            our_team = 1
+
+        done = False
+        steps, score, tot_reward, win= 0, 0, 0, 0
+        n_epi += 1
+        
+        loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
+        ball_owned_team = obs[0]["ball_owned_team"] #-1
+
+        while not done:
+
+            #attack model
+            while not done:  # step loop
+                init_t = time.time()
+
+                if our_team == 0 and ball_owned_team == 1: #ball owned by opp change to model_def
+                    break
+                elif our_team == 1 and ball_owned_team == 0: #ball owned by opp change to model_def
+                    break
+
+                is_stopped = False
+                while signal_queue[0].qsize() > 0:
+                    time.sleep(0.02)
+                    is_stopped = True
+                if is_stopped:
+                    model_att.load_state_dict(center_model[0].state_dict())
+                wait_t += time.time() - init_t
+
+                state_dict = fe.encode(obs[0])
+                state_dict_tensor = state_to_tensor(state_dict)
+
+                t1 = time.time()
+                with torch.no_grad():
+                    a_prob, m_prob, _ = model_att(state_dict_tensor)
+                forward_t += time.time()-t1 
+                real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
+
+                prev_obs = obs
+
+                if our_team == 0:
+                    obs, rew, done, info = env_left.step(real_action)
+                else:
+                    obs, rew, done, info = env_right.step(real_action)
+
+                ball_owned_team = obs[0]["ball_owned_team"]
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+                state_prime_dict = fe.encode(obs[0])
+
+                transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+                rollout_att.append(transition)
+                if len(rollout_att) == arg_dict["rollout_len"]:
+                    data_queue[0].put(rollout_att)
+                    rollout_att = []
+                    model_att.load_state_dict(center_model[0].state_dict())
+
+                steps += 1
+                score += rew
+                tot_reward += fin_r
+
+                loop_t += time.time()-init_t
+
+                if done:
+                    if score > 0:
+                        win = 1
+                    if our_team == 0:
+                        print("model in left score",score,"total reward",tot_reward)
+                    else:
+                        print("model in right score",score,"total reward",tot_reward)
+                    summary_data = (win, score, tot_reward, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
+                    summary_queue.put(summary_data)
+
+             
+            #defence model
+            while not done:  # step loop
+                init_t = time.time()
+
+                if our_team == 0 and ball_owned_team == 0: #ball owned by us so change to model_att
+                    break
+                elif our_team == 1 and ball_owned_team == 1: #ball owned by us so change to model_att
+                    break
+
+                is_stopped = False
+                while signal_queue[1].qsize() > 0:
+                    time.sleep(0.02)
+                    is_stopped = True
+                if is_stopped:
+                    model_def.load_state_dict(center_model[1].state_dict())
+                wait_t += time.time() - init_t
+
+                state_dict = fe.encode(obs[0])
+                state_dict_tensor = state_to_tensor(state_dict)
+
+                t1 = time.time()
+                with torch.no_grad():
+                    a_prob, m_prob, _ = model_att(state_dict_tensor)
+                forward_t += time.time()-t1 
+                real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
+
+                prev_obs = obs
+
+                if our_team == 0:
+                    obs, rew, done, info = env_left.step(real_action)
+                else:
+                    obs, rew, done, info = env_right.step(real_action)
+
+                ball_owned_team = obs[0]["ball_owned_team"]
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+                state_prime_dict = fe.encode(obs[0])
+
+                transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+                rollout_def.append(transition)
+                if len(rollout_def) == arg_dict["rollout_len"]:
+                    data_queue[1].put(rollout_def)
+                    rollout_def = []
+                    model_def.load_state_dict(center_model[1].state_dict())
+
+                steps += 1
+                score += rew
+                tot_reward += fin_r
+
+                loop_t += time.time()-init_t
+
+                if done:
+                    if score > 0:
+                        win = 1
+                    if our_team == 0:
+                        print("model in left score",score,"total reward",tot_reward)
+                    else:
+                        print("model in right score",score,"total reward",tot_reward)
+                    summary_data = (win, score, tot_reward, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
+                    summary_queue.put(summary_data)
+
+            
 def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     print("Actor process {} started".format(actor_num))
