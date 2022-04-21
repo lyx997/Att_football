@@ -102,7 +102,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_competition",    
+        "env": "11_vs_11_stochastic",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
@@ -129,7 +129,7 @@ if __name__ == '__main__':
         "print_mode" : False,
 
         "encoder" : "encoder_gat3",
-        "rewarder" : "rewarder_basic",
+        "rewarder" : "rewarder_att_def",
         "model" : "gat_att_def3",#add left right closest
         "algorithm" : "ppo",
 

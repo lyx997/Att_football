@@ -11,15 +11,13 @@ from tensorboardX import SummaryWriter
 
 from actor import *
 from learner import *
-from evaluator_with_hard_att_def import seperate_evaluator
+from evaluator_with_hard_att_def import evaluator
 #from evaluator import evaluator
 from datetime import datetime, timedelta
 
 
 def save_args(arg_dict):
     os.makedirs(arg_dict["log_dir"])
-    os.makedirs(arg_dict["log_dir_att"])
-    os.makedirs(arg_dict["log_dir_def"])
     os.makedirs(arg_dict["log_dir_dump"])
     os.makedirs(arg_dict["log_dir_dump_left"])
     os.makedirs(arg_dict["log_dir_dump_right"])
@@ -41,13 +39,11 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S")
-    arg_dict["log_dir_att"] = arg_dict["log_dir"] + '/att'
-    arg_dict["log_dir_def"] = arg_dict["log_dir"] + '/def'
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"]
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
     arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
     arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
-    
+
     save_args(arg_dict)
     if arg_dict["trained_model_path"] and 'kaggle' in arg_dict['env']: 
         copy_models(os.path.dirname(arg_dict['trained_model_path']), arg_dict['log_dir'])
@@ -56,69 +52,53 @@ def main(arg_dict):
     np.set_printoptions(suppress=True)
     pp = pprint.PrettyPrinter(indent=4)
     torch.set_num_threads(1)
-
-    fe_att_def = importlib.import_module("encoders." + arg_dict["encoder"])
-    fe_att_def = fe_att_def.FeatureEncoder()
-    arg_dict["feature_dims"] = fe_att_def.get_feature_dims()
-
-    model_att = importlib.import_module("models.gat_att")
-    model_def = importlib.import_module("models.gat_def")
+    
+    fe = importlib.import_module("encoders." + arg_dict["encoder"])
+    fe = fe.FeatureEncoder()
+    arg_dict["feature_dims"] = fe.get_feature_dims()
+    
+    model = importlib.import_module("models." + arg_dict["model"])
     cpu_device = torch.device('cpu')
-
-    center_model_att = model_att.Model(arg_dict)
-    center_model_def = model_def.Model(arg_dict)
+    center_model = model.Model(arg_dict)
     
-    att_optimization_step = 0
-    def_optimization_step = 0
+    if arg_dict["trained_model_path"]:
+        checkpoint = torch.load(arg_dict["trained_model_path"], map_location=cpu_device)
+        optimization_step = checkpoint['optimization_step']
+        center_model.load_state_dict(checkpoint['model_state_dict'])
+        center_model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        arg_dict["optimization_step"] = optimization_step
+        print("Trained model", arg_dict["trained_model_path"] ,"suffessfully loaded") 
+    else:
+        optimization_step = 0
 
-    model_att_dict = {
-        'optimization_step': att_optimization_step,
-        'model_state_dict': center_model_att.state_dict(),
-        'optimizer_state_dict': center_model_att.optimizer.state_dict(),
+    model_dict = {
+        'optimization_step': optimization_step,
+        'model_state_dict': center_model.state_dict(),
+        'optimizer_state_dict': center_model.optimizer.state_dict(),
     }
-    model_def_dict = {
-        'optimization_step': def_optimization_step,
-        'model_state_dict': center_model_def.state_dict(),
-        'optimizer_state_dict': center_model_def.optimizer.state_dict(),
-    }
-    
-    att_path = arg_dict["log_dir_att"]+f"/model_att_{att_optimization_step}.tar"
-    torch.save(model_att_dict, att_path)
-    def_path = arg_dict["log_dir_def"]+f"/model_def_{def_optimization_step}.tar"
-    torch.save(model_def_dict, def_path)
 
+    path = arg_dict["log_dir"]+f"/model_{optimization_step}.tar"
+    torch.save(model_dict, path)
         
-    center_model_att.share_memory()
-    center_model_def.share_memory()
-
-    center_model = [center_model_att, center_model_def]
-
-    att_data_queue = mp.Queue()
-    att_signal_queue = mp.Queue()
-    def_data_queue = mp.Queue()
-    def_signal_queue = mp.Queue()
-
-    data_queue = [att_data_queue, def_data_queue]
-    signal_queue = [att_signal_queue, def_signal_queue]
-
+    center_model.share_memory()
+    data_queue = mp.Queue()
+    signal_queue = mp.Queue()
     summary_queue = mp.Queue()
-    writer = SummaryWriter(logdir=arg_dict["log_dir"])
     
     processes = [] 
-    for i in range(2):
-        p = mp.Process(target=seperate_learner, args=(i, center_model[i], data_queue[i], signal_queue[i], summary_queue, arg_dict, writer))
-        p.start()
-        processes.append(p)
+    p = mp.Process(target=learner, args=(center_model, data_queue, signal_queue, summary_queue, arg_dict))
+    p.start()
+    processes.append(p)
     for rank in range(arg_dict["num_processes"]):
         if arg_dict["env"] == "11_vs_11_selfplay":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
-            p = mp.Process(target=seperate_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=integrat_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
     for i in range(5):
         if "env_evaluation" in arg_dict:
-            p = mp.Process(target=seperate_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
             processes.append(p)
         
@@ -154,12 +134,16 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def_seperate",
+        "encoder" : "encoder_gat_att_def",
         "rewarder" : "rewarder_att_def",
-        #"model" : "gat_att_def3",#add left right closest
+        "model" : "gat_att_def4",#add left right closest
         "algorithm" : "ppo",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)
+    
+    
+        
+        
