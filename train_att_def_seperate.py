@@ -18,6 +18,11 @@ from datetime import datetime, timedelta
 
 def save_args(arg_dict):
     os.makedirs(arg_dict["log_dir"])
+    os.makedirs(arg_dict["log_dir_att"])
+    os.makedirs(arg_dict["log_dir_def"])
+    os.makedirs(arg_dict["log_dir_dump"])
+    os.makedirs(arg_dict["log_dir_dump_left"])
+    os.makedirs(arg_dict["log_dir_dump_right"])
     args_info = json.dumps(arg_dict, indent=4)
     f = open(arg_dict["log_dir"]+"/args.json","w")
     f.write(args_info)
@@ -37,6 +42,12 @@ def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
     arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S")
+    arg_dict["log_dir_att"] = arg_dict["log_dir"] + '/att'
+    arg_dict["log_dir_def"] = arg_dict["log_dir"] + '/def'
+    arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
+    arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
+    arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
+    
     save_args(arg_dict)
     if arg_dict["trained_model_path"] and 'kaggle' in arg_dict['env']: 
         copy_models(os.path.dirname(arg_dict['trained_model_path']), arg_dict['log_dir'])
@@ -71,9 +82,9 @@ def main(arg_dict):
         'optimizer_state_dict': center_model_def.optimizer.state_dict(),
     }
     
-    att_path = arg_dict["log_dir"]+f"/model_att_{att_optimization_step}.tar"
+    att_path = arg_dict["log_dir_att"]+f"/model_att_{att_optimization_step}.tar"
     torch.save(model_att_dict, att_path)
-    def_path = arg_dict["log_dir"]+f"/model_def_{def_optimization_step}.tar"
+    def_path = arg_dict["log_dir_def"]+f"/model_def_{def_optimization_step}.tar"
     torch.save(model_def_dict, def_path)
 
         
@@ -91,10 +102,11 @@ def main(arg_dict):
     signal_queue = [att_signal_queue, def_signal_queue]
 
     summary_queue = mp.Queue()
+    writer = SummaryWriter(logdir=arg_dict["log_dir"])
     
     processes = [] 
     for i in range(2):
-        p = mp.Process(target=learner, args=(i, center_model[i], data_queue[i], signal_queue[i], summary_queue, arg_dict))
+        p = mp.Process(target=learner, args=(i, center_model[i], data_queue[i], signal_queue[i], summary_queue, arg_dict, writer))
         p.start()
         processes.append(p)
     for rank in range(arg_dict["num_processes"]):
@@ -117,12 +129,12 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_hard_stochastic",    
+        "env": "11_vs_11_stochastic",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
         "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
-        "batch_size": 12,   
+        "batch_size": 32,   
         "buffer_size": 6,
         "rollout_len": 30,
 

@@ -70,10 +70,10 @@ class Model(nn.Module):
 
         player_state = state_dict["player_state"]          
         ball_state = state_dict["ball_state"]              
-        left_team_state = state_dict["right_team_state"]
-        left_closest_state = state_dict["right_closest"]
-        right_team_state = state_dict["left_team_state"]  
-        right_closest_state = state_dict["left_closest"]
+        left_team_state = state_dict["left_team_state"]
+        left_closest_state = state_dict["left_closest"]
+        right_team_state = state_dict["right_team_state"]  
+        right_closest_state = state_dict["right_closest"]
         avail = state_dict["avail"]
         
         match_sit_embed = F.relu(self.norm_match_situation(self.fc_match_situation(match_situation)))

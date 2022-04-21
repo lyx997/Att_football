@@ -56,11 +56,11 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
     model_def = imported_model_def.Model(arg_dict)
     model_def.load_state_dict(center_model[1].state_dict())
     
-    env_left = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir='/tmp/football', \
+    env_left = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
                                           write_goal_dumps=False, write_full_episode_dumps=False, render=False)
-    env_right = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir='/tmp/football', \
+    env_right = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
                                           write_goal_dumps=False, write_full_episode_dumps=False, render=False)
@@ -92,9 +92,7 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
             while not done:  # step loop
                 init_t = time.time()
 
-                if our_team == 0 and ball_owned_team == 1: #ball owned by opp change to model_def
-                    break
-                elif our_team == 1 and ball_owned_team == 0: #ball owned by opp change to model_def
+                if ball_owned_team == 1: #ball owned by opp change to model_def
                     break
 
                 is_stopped = False
@@ -125,7 +123,11 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
                 state_prime_dict = fe.encode(obs[0])
 
-                transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+                if ball_owned_team == 1:
+                    transition = (state_dict, a, m, fin_r, state_prime_dict, prob, True, need_m) #change to model defence
+                else:
+                    transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+
                 rollout_att.append(transition)
                 if len(rollout_att) == arg_dict["rollout_len"]:
                     data_queue[0].put(rollout_att)
@@ -153,9 +155,7 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
             while not done:  # step loop
                 init_t = time.time()
 
-                if our_team == 0 and ball_owned_team == 0: #ball owned by us so change to model_att
-                    break
-                elif our_team == 1 and ball_owned_team == 1: #ball owned by us so change to model_att
+                if ball_owned_team == 0: #ball owned by us so change to model_att
                     break
 
                 is_stopped = False
@@ -186,7 +186,11 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
                 state_prime_dict = fe.encode(obs[0])
 
-                transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+                if ball_owned_team == 0:
+                    transition = (state_dict, a, m, fin_r, state_prime_dict, prob, True, need_m) # change to model attack
+                else:
+                    transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+
                 rollout_def.append(transition)
                 if len(rollout_def) == arg_dict["rollout_len"]:
                     data_queue[1].put(rollout_def)

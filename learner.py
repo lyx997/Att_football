@@ -80,9 +80,9 @@ def save_model(i, model, arg_dict, optimization_step, last_saved_step):
             'optimizer_state_dict': model.optimizer.state_dict(),
         }
         if i == 0:
-            path = arg_dict["log_dir"]+"/model_att_"+str(optimization_step)+".tar"
+            path = arg_dict["log_dir_att"]+"/model_att_"+str(optimization_step)+".tar"
         else:
-            path = arg_dict["log_dir"]+"/model_def_"+str(optimization_step)+".tar"
+            path = arg_dict["log_dir_def"]+"/model_def_"+str(optimization_step)+".tar"
         torch.save(model_dict, path)
         print("Model saved :", path)
         return optimization_step
@@ -100,7 +100,7 @@ def get_data(queue, arg_dict, model):
         data.append(mini_batch)
     return data
 
-def learner(i, center_model, queue, signal_queue, summary_queue, arg_dict):
+def learner(i, center_model, queue, signal_queue, summary_queue, arg_dict, writer):
     print("Learner process started")
     if i==0:
         imported_model = importlib.import_module("models.gat_att")
@@ -120,7 +120,6 @@ def learner(i, center_model, queue, signal_queue, summary_queue, arg_dict):
                 state[k] = v.cuda()
     model.to(device)
     
-    writer = SummaryWriter(logdir=arg_dict["log_dir"])
     optimization_step = 0
     if "optimization_step" in arg_dict:
         optimization_step = arg_dict["optimization_step"]
