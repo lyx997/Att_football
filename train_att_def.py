@@ -136,7 +136,7 @@ if __name__ == '__main__':
 
         "encoder" : "encoder_gat_att_def",
         "rewarder" : "rewarder_att_def",
-        "model" : "gat_att_def4",#add left right closest
+        "model" : "gat_att_def5",
         "algorithm" : "ppo",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

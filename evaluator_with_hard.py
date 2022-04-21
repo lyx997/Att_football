@@ -49,16 +49,26 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     #opp_model = opp_import_model.Model(arg_dict)
     #opp_model_checkpoint = torch.load(arg_dict["env_evaluation"])
     #opp_model.load_state_dict(opp_model_checkpoint['model_state_dict'])
-
-    #
-    #env = football_env.create_environment(env_name=arg_dict["env"], number_of_right_players_agent_controls=1, representation="raw", \
-    #                                      stacked=False, logdir='/tmp/football', write_goal_dumps=False, write_full_episode_dumps=False, \
-    #                                      render=False)
-    env = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir='/tmp/football', \
-                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False)
+    env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
+                                          number_of_left_players_agent_controls=1,
+                                          number_of_right_players_agent_controls=0,
+                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+    env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
+                                          number_of_left_players_agent_controls=0,
+                                          number_of_right_players_agent_controls=1,
+                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+    
     n_epi = 0
     while True: # episode loop
-        env.reset()   
+        seed = random.random()
+        if seed < 0.5:
+            env_left.reset()   
+            obs = env_left.observation()
+            our_team = 0
+        else:
+            env_right.reset()   
+            obs = env_right.observation()
+            our_team = 1
         done = False
         steps, score, tot_reward, win = 0, 0, 0, 0
         n_epi += 1
@@ -69,7 +79,6 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
         #        torch.zeros([1, 1, 256], dtype=torch.float))
 
         loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
-        obs = env.observation()
         
         while not done:  # step loop
             init_t = time.time()
@@ -99,7 +108,11 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             #opp_real_action, opp_a, opp_m, opp_need_m, opp_prob, opp_prob_selected_a, opp_prob_selected_m = get_action(opp_a_prob, opp_m_prob)
 
             prev_obs = obs
-            obs, rew, done, info = env.step([real_action])
+            if our_team == 0:
+                obs, rew, done, info = env_left.step([real_action])
+            else:
+                obs, rew, done, info = env_right.step([real_action])
+
             fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
             state_prime_dict = fe1.encode(obs[0])
             
@@ -113,15 +126,16 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             score += rew
             tot_reward += fin_r
             
-            if arg_dict['print_mode']:
-                print_status(steps,a,m,prob_selected_a,prob_selected_m,prev_obs,obs,fin_r,tot_reward)
-            
             loop_t += time.time()-init_t
             
             if done:
                 if score > 0:
                     win = 1
-                print("Evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
+
+                if our_team == 0:
+                    print("model in left evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
+                else:
+                    print("model in right evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
                 summary_data = (win, score, tot_reward, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)
 
