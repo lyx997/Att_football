@@ -212,7 +212,6 @@ class Model(nn.Module):
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
-        #out, h_out = self.lstm(cat, h_in)
         out, h_out = self.lstm(cat, h_in)
         
         a_out = F.relu(self.norm_pi_a1(self.fc_pi_a1(out)))

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-def state_to_tensor(state_dict):
+def state_to_tensor(state_dict, h_in):
     player_situation = torch.from_numpy(state_dict["player_situation"]).float().unsqueeze(0).unsqueeze(0)
     ball_situation = torch.from_numpy(state_dict["ball_situation"]).float().unsqueeze(0).unsqueeze(0)
     match_situation = torch.from_numpy(state_dict["match_situation"]).float().unsqueeze(0).unsqueeze(0)
@@ -26,6 +26,7 @@ def state_to_tensor(state_dict):
       "left_team_state" : left_team_state,
       "right_team_state" : right_team_state,
       "avail" : avail,
+      "hidden" : h_in,
       "left_repeat": left_repeat,
       "right_repeat": right_repeat,
       "left_closest":left_closest_state,

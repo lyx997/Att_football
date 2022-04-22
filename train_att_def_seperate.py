@@ -41,7 +41,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S")
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_gat_att_def_seperate"
     arg_dict["log_dir_att"] = arg_dict["log_dir"] + '/att'
     arg_dict["log_dir_def"] = arg_dict["log_dir"] + '/def'
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
@@ -138,6 +138,7 @@ if __name__ == '__main__':
         "buffer_size": 6,
         "rollout_len": 30,
 
+        "lstm_size": 256,
         "k_epoch" : 3,
         "learning_rate" : 0.0001,
         "gamma" : 0.993,
@@ -157,7 +158,7 @@ if __name__ == '__main__':
         "encoder" : "encoder_gat_att_def_seperate",
         "rewarder" : "rewarder_att_def",
         #"model" : "gat_att_def3",#add left right closest
-        "algorithm" : "ppo",
+        "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }

@@ -78,6 +78,8 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
         done = False
         steps, score, tot_reward, win = 0, 0, 0, 0
         n_epi += 1
+        h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
+                 torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
         
         loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
 
@@ -100,12 +102,13 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                     pass
                 wait_t += time.time() - init_t
                 
+                h_in = h_out
                 state_dict = fe1.encode(obs[0])
-                state_dict_tensor = state_to_tensor1(state_dict)
+                state_dict_tensor = state_to_tensor1(state_dict, h_in)
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _ = model_att(state_dict_tensor)
+                    a_prob, m_prob, _, h_out = model_att(state_dict_tensor)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -120,6 +123,11 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
                 state_prime_dict = fe1.encode(obs[0])
                 
+
+                (h1_in, h2_in) = h_in
+                (h1_out, h2_out) = h_out
+                state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
+                state_prime_dict["hidden"] = (h1_out.numpy(), h2_out.numpy())
                 transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
     
                 steps += 1
@@ -154,12 +162,13 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                     pass
                 wait_t += time.time() - init_t
                 
+                h_in = h_out
                 state_dict = fe1.encode(obs[0])
-                state_dict_tensor = state_to_tensor1(state_dict)
+                state_dict_tensor = state_to_tensor1(state_dict, h_in)
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _ = model_def(state_dict_tensor)
+                    a_prob, m_prob, _, h_out = model_def(state_dict_tensor)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -174,6 +183,10 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
                 state_prime_dict = fe1.encode(obs[0])
                 
+                (h1_in, h2_in) = h_in
+                (h1_out, h2_out) = h_out
+                state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
+                state_prime_dict["hidden"] = (h1_out.numpy(), h2_out.numpy())
                 transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
     
                 steps += 1
@@ -236,6 +249,8 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
         steps, score, tot_reward, win = 0, 0, 0, 0
         n_epi += 1
         
+        h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
+                 torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
         loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
 
         while not done:  # step loop
@@ -249,12 +264,13 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 pass
             wait_t += time.time() - init_t
             
+            h_in = h_out
             state_dict = fe1.encode(obs[0])
-            state_dict_tensor = state_to_tensor1(state_dict)
+            state_dict_tensor = state_to_tensor1(state_dict, h_in)
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _ = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out = model(state_dict_tensor)
             forward_t += time.time()-t1 
     
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -268,6 +284,10 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
             state_prime_dict = fe1.encode(obs[0])
             
+            (h1_in, h2_in) = h_in
+            (h1_out, h2_out) = h_out
+            state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
+            state_prime_dict["hidden"] = (h1_out.numpy(), h2_out.numpy())
             transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
     
             steps += 1

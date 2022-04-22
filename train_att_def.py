@@ -118,6 +118,7 @@ if __name__ == '__main__':
         "buffer_size": 6,
         "rollout_len": 30,
 
+        "lstm_size": 256,
         "k_epoch" : 3,
         "learning_rate" : 0.0001,
         "gamma" : 0.993,
@@ -137,7 +138,7 @@ if __name__ == '__main__':
         "encoder" : "encoder_gat_att_def",
         "rewarder" : "rewarder_att_def",
         "model" : "gat_att_def5",
-        "algorithm" : "ppo",
+        "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
