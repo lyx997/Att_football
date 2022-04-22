@@ -11,12 +11,15 @@ from tensorboardX import SummaryWriter
 
 from actor import *
 from learner import *
-from evaluator import evaluator
+from evaluator_with_hard import evaluator
 from datetime import datetime, timedelta
 
 
 def save_args(arg_dict):
     os.makedirs(arg_dict["log_dir"])
+    os.makedirs(arg_dict["log_dir_dump"])
+    os.makedirs(arg_dict["log_dir_dump_left"])
+    os.makedirs(arg_dict["log_dir_dump_right"])
     args_info = json.dumps(arg_dict, indent=4)
     f = open(arg_dict["log_dir"]+"/args.json","w")
     f.write(args_info)
@@ -35,7 +38,10 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S")
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + '_conv1d_att_def'
+    arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
+    arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
+    arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
     save_args(arg_dict)
     if arg_dict["trained_model_path"] and 'kaggle' in arg_dict['env']: 
         copy_models(os.path.dirname(arg_dict['trained_model_path']), arg_dict['log_dir'])
@@ -128,11 +134,11 @@ if __name__ == '__main__':
         "print_mode" : False,
 
         "encoder" : "encoder_basic",
-        "rewarder" : "rewarder_basic",
+        "rewarder" : "rewarder_att_def",
         "model" : "conv1d",
-        "algorithm" : "ppo",
+        "algorithm" : "ppo_with_lstm",
 
-        "env_evaluation":'logs/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

@@ -34,7 +34,7 @@ class Model(nn.Module):
         self.fc_att2_defence_ws = nn.Linear(96,96)
         self.fc_att2_defence_as = nn.Linear(192,1)
 
-        self.fc_cat = nn.Linear(64*3+48*3,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(64*3+48*4,arg_dict["lstm_size"])
 
 
         self.norm_player_situation = nn.LayerNorm(64)
@@ -139,12 +139,17 @@ class Model(nn.Module):
         ball_att2 = F.leaky_relu(self.fc_att2_defence_as(ball_ws2))
         ball_att2 = F.gumbel_softmax(ball_att2, dim=1, hard=True)
         
+        ball_att1 = ball_att1.permute(0,2,1)
         ball_att2 = ball_att2.permute(0,2,1)
+        right_team_att1 = right_team_att1.view(horizon*batch, n_right, n_left)
+
+        left_right_ball_att1 = torch.bmm(ball_att2, right_team_att1)
+        left_right_ball_atted_embed = torch.bmm(left_right_ball_att1, left_team_state_embed).view(horizon, batch, -1)
 
         right_ball_atted_embed = torch.bmm(ball_att2, right_team_state_embed).view(horizon, batch, -1)
 
         cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, 
-                    left_closest_state_embed, right_closest_state_embed, right_ball_atted_embed], -1)
+                    left_closest_state_embed, right_closest_state_embed, right_ball_atted_embed, left_right_ball_atted_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
