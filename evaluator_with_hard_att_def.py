@@ -11,6 +11,16 @@ from os import listdir
 from os.path import isfile, join
 from datetime import datetime, timedelta
 
+def split_att_idx(all_sorted_idx):
+    team_att_idx_list = []
+    opp_att_idx_list = []
+    for idx in all_sorted_idx:
+        if idx > 10:
+            opp_att_idx_list.append(idx % 11)
+        else:
+            team_att_idx_list.append(idx)
+    
+    return team_att_idx_list, opp_att_idx_list
 
 def get_action(a_prob, m_prob):
     a = Categorical(a_prob).sample().item()
@@ -108,16 +118,17 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out = model_att(state_dict_tensor)
+                    a_prob, m_prob, _, h_out, player_sort3_att_idx = model_att(state_dict_tensor)
+                    team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
                 prev_obs = obs
                 if our_team == 0:
-                    obs, rew, done, info = env_left.step([real_action])
+                    obs, rew, done, info = env_left.att_step([real_action], [team_att_idx, opp_att_idx])
                 else:
-                    obs, rew, done, info = env_right.step([real_action])
+                    obs, rew, done, info = env_right.att_step([real_action], [team_att_idx, opp_att_idx])
 
                 ball_owned_team = obs[0]["ball_owned_team"]
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
@@ -168,16 +179,17 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out = model_def(state_dict_tensor)
+                    a_prob, m_prob, _, h_out, player_sort3_att_idx = model_def(state_dict_tensor)
+                    team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
                 prev_obs = obs
                 if our_team == 0:
-                    obs, rew, done, info = env_left.step([real_action])
+                    obs, rew, done, info = env_left.att_step([real_action], [team_att_idx, opp_att_idx])
                 else:
-                    obs, rew, done, info = env_right.step([real_action])
+                    obs, rew, done, info = env_right.att_step([real_action], [team_att_idx, opp_att_idx])
 
                 ball_owned_team = obs[0]["ball_owned_team"]
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])

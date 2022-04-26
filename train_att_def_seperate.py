@@ -136,7 +136,7 @@ if __name__ == '__main__':
         "num_processes": 60,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6,
-        "rollout_len": 30,
+        "rollout_len": 15,
 
         "lstm_size": 256,
         "k_epoch" : 3,
@@ -156,7 +156,7 @@ if __name__ == '__main__':
         "print_mode" : False,
 
         "encoder" : "encoder_gat_att_def_seperate",
-        "rewarder" : "rewarder_att_def",
+        "rewarder" : "rewarder_att_def2",
         "model_att" : "gat_att2",#add left right closest
         "model_def" : "gat_def2",#add left right closest
         "algorithm" : "ppo_with_lstm",

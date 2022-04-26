@@ -88,10 +88,9 @@ class Model(nn.Module):
 
         for i, idx in enumerate(player_sort3_att_idx):
             all_team_onehot_1[i, idx[0], 0] = 1
-        for i, idx in enumerate(player_sort3_att_idx):
             all_team_onehot_2[i, idx[1], 0] = 1
-        for i, idx in enumerate(player_sort3_att_idx):
             all_team_onehot_3[i, idx[2], 0] = 1
+
 
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att2_embed = torch.bmm(all_team_onehot_2.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
@@ -115,7 +114,9 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        return prob, prob_m, v, h_out
+        player_sort3_att_idx = player_sort3_att_idx.squeeze(0)
+
+        return prob, prob_m, v, h_out, player_sort3_att_idx
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
         s_match_sit_batch, s_player_sit_batch, s_ball_sit_batch, s_player_batch, s_ball_batch, s_team_batch, avail_batch = [],[],[],[],[],[],[]

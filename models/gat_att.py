@@ -120,8 +120,9 @@ class Model(nn.Module):
         right_left_ws1 = right_left_ws1.view(horizon*batch*n_left, n_right, -1)#(1*10,11,64)
 
         left_team_ws1 = torch.cat([left_team_right_ws1_repeat, right_left_ws1], dim=-1)
-        left_team_att1 = F.leaky_relu(self.fc_att1_attack_as(left_team_ws1))
-        left_team_att1 = F.softmax(left_team_att1, dim=1) #(1*10,11,1)
+        left_team_att1_ = F.leaky_relu(self.fc_att1_attack_as(left_team_ws1))
+        left_team_att1 = F.softmax(left_team_att1_, dim=1) #(1*10,11,1)
+        left_team_att1_gumbeled = F.gumbel_softmax(left_team_att1_, dim=1, hard=True)
 
         right_att1_left_embed = F.elu(torch.bmm(left_team_att1.permute(0,2,1), right_left_ws1))
         right_att1_left_embed = right_att1_left_embed.view(horizon*batch, n_left, -1)#(1,10,64)
@@ -138,15 +139,15 @@ class Model(nn.Module):
         
         player_att1 = player_att1.permute(0,2,1)
         player_att2 = player_att2.permute(0,2,1)
-        left_team_att1 = left_team_att1.view(horizon*batch, n_left, n_right)
+        left_team_att1_gumbeled = left_team_att1.view(horizon*batch, n_left, n_right)
 
-        right_left_player_att1 = torch.bmm(player_att2, left_team_att1)
+        right_left_player_att1 = torch.bmm(player_att2, left_team_att1_gumbeled)
         right_left_player_atted_embed = torch.bmm(right_left_player_att1, right_team_state_embed).view(horizon,batch, -1)
 
         left_player_atted_embed = torch.bmm(player_att2, left_team_state_embed).view(horizon, batch, -1)
 
         cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, 
-                    left_closest_state_embed, right_closest_state_embed, left_player_atted_embed, right_left_player_atted_embed], -1)
+                    left_closest_state_embed, left_player_atted_embed, right_closest_state_embed, right_left_player_atted_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]

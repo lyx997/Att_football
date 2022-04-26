@@ -8,10 +8,10 @@ import time, os
 import argparse
 import gfootball.env as footballenv
 from models.conv1d import Model as PPO
-from models.conv2d import Model as PPO_Conv2
+#from models.conv2d import Model as PPO_Conv2
 from models.gat_att_def3 import Model as Gat3
 from encoders.encoder_basic import FeatureEncoder as FE, state_to_tensor as stt
-from encoders.encoder_conv2 import FeatureEncoder as FE2, state_to_tensor as stt2
+#from encoders.encoder_conv2 import FeatureEncoder as FE2, state_to_tensor as stt2
 from encoders.encoder_gat3 import FeatureEncoder as FE3, state_to_tensor as stt3
 
 if os.path.exists('log.txt'):

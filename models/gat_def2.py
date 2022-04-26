@@ -115,7 +115,9 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        return prob, prob_m, v, h_out
+        player_sort3_att_idx = player_sort3_att_idx.squeeze(0)
+
+        return prob, prob_m, v, h_out, player_sort3_att_idx
 
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
