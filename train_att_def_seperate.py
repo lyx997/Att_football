@@ -136,7 +136,7 @@ if __name__ == '__main__':
         "num_processes": 60,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6,
-        "rollout_len": 15,
+        "rollout_len": 30,
 
         "lstm_size": 256,
         "k_epoch" : 3,
