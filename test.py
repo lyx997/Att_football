@@ -10,3 +10,10 @@ env_right = football_env.create_environment(env_name="11_vs_11_competition", rep
 
 obs = env_right.reset()
 
+
+a = torch.tensor([[[1],[2],[3]],[[6],[4],[5]]])
+onehot = torch.zeros((2,3,1))
+b = a.sort(descending=True, dim=1)[1]
+for i, idx in enumerate(b):
+    onehot[i, idx[0][0], 0] = 1
+    pass

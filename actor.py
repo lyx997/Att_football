@@ -147,8 +147,8 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
     print("Actor process {} started".format(actor_num))
     fe_module = importlib.import_module("encoders." + arg_dict["encoder"])
     rewarder = importlib.import_module("rewarders." + arg_dict["rewarder"])
-    imported_model_att = importlib.import_module("models.gat_att")
-    imported_model_def = importlib.import_module("models.gat_def")
+    imported_model_att = importlib.import_module("models." + arg_dict["model_att"])
+    imported_model_def = importlib.import_module("models." + arg_dict["model_def"])
     
     fe = fe_module.FeatureEncoder()
     state_to_tensor = fe_module.state_to_tensor

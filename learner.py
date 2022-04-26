@@ -171,9 +171,9 @@ def get_data(queue, arg_dict, model):
 def seperate_learner(i, center_model, queue, signal_queue, summary_queue, arg_dict, writer):
     print("Learner process started")
     if i==0:
-        imported_model = importlib.import_module("models.gat_att")
+        imported_model = importlib.import_module("models." + arg_dict["model_att"])
     else:
-        imported_model = importlib.import_module("models.gat_def")
+        imported_model = importlib.import_module("models." + arg_dict["model_def"])
 
     imported_algo = importlib.import_module("algos." + arg_dict["algorithm"])
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

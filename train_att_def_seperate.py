@@ -41,7 +41,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_gat_att_def_seperate"
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_gat_att_def_seperate_update"
     arg_dict["log_dir_att"] = arg_dict["log_dir"] + '/att'
     arg_dict["log_dir_def"] = arg_dict["log_dir"] + '/def'
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
@@ -61,8 +61,8 @@ def main(arg_dict):
     fe_att_def = fe_att_def.FeatureEncoder()
     arg_dict["feature_dims"] = fe_att_def.get_feature_dims()
 
-    model_att = importlib.import_module("models.gat_att")
-    model_def = importlib.import_module("models.gat_def")
+    model_att = importlib.import_module("models." + arg_dict["model_att"])
+    model_def = importlib.import_module("models." + arg_dict["model_def"])
     cpu_device = torch.device('cpu')
 
     center_model_att = model_att.Model(arg_dict)
@@ -133,7 +133,7 @@ if __name__ == '__main__':
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
+        "num_processes": 60,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6,
         "rollout_len": 30,
@@ -157,7 +157,8 @@ if __name__ == '__main__':
 
         "encoder" : "encoder_gat_att_def_seperate",
         "rewarder" : "rewarder_att_def",
-        #"model" : "gat_att_def3",#add left right closest
+        "model_att" : "gat_att2",#add left right closest
+        "model_def" : "gat_def2",#add left right closest
         "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

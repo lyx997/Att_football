@@ -10,11 +10,8 @@ def state_to_tensor(state_dict, h_in):
     ball_state = torch.from_numpy(state_dict["ball_state"]).float().unsqueeze(0).unsqueeze(0)
     left_team_state = torch.from_numpy(state_dict["left_team_state"]).float().unsqueeze(0).unsqueeze(0)
     right_team_state = torch.from_numpy(state_dict["right_team_state"]).float().unsqueeze(0).unsqueeze(0)
+    all_team_state = torch.from_numpy(state_dict["all_team_state"]).float().unsqueeze(0).unsqueeze(0)
     avail = torch.from_numpy(state_dict["avail"]).float().unsqueeze(0).unsqueeze(0)
-    left_repeat = torch.from_numpy(state_dict["left_repeat"]).long()
-    right_repeat = torch.from_numpy(state_dict["right_repeat"]).long()
-    left_closest_state = torch.from_numpy(state_dict["left_closest"]).float().unsqueeze(0).unsqueeze(0)
-    right_closest_state = torch.from_numpy(state_dict["right_closest"]).float().unsqueeze(0).unsqueeze(0)
 
     state_dict_tensor = {
       'match_situation':match_situation,
@@ -25,12 +22,9 @@ def state_to_tensor(state_dict, h_in):
       "ball_state" : ball_state,
       "left_team_state" : left_team_state,
       "right_team_state" : right_team_state,
+      "all_team_state" : all_team_state,
       "avail" : avail,
       "hidden" : h_in,
-      "left_repeat": left_repeat,
-      "right_repeat": right_repeat,
-      "left_closest":left_closest_state,
-      "right_closest":right_closest_state,
     }
     return state_dict_tensor
 
@@ -52,10 +46,11 @@ class FeatureEncoder:
             'player_situation':29,
             'ball_situation':18,
 
-            'player_state':7,
-            'ball_state':7,
-            'left_team_state':7,
-            'right_team_state':7,
+            'player_state':8,
+            'ball_state':8,
+            'left_team_state':8,
+            'right_team_state':8,
+            'all_team_state': 8,
         }
         return dims
 
@@ -115,39 +110,29 @@ class FeatureEncoder:
                                      np.array(obs['ball_direction'])*20,
                                      np.array([ball_speed*20, ball_distance, ball_owned, ball_owned_by_us])))
         
-        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired]))
-        ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, [ball_speed*20, ball_distance, 0.]))
+        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired, 1]))
+        ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, [ball_speed*20, ball_distance, 0., 0]))
         
 
-        obs_left_team = np.delete(obs['left_team'], player_num, axis=0)
-        obs_left_team_direction = np.delete(obs['left_team_direction'], player_num, axis=0)
+        obs_left_team = np.array(obs['left_team'])
+        obs_left_team_direction = np.array(obs['left_team_direction'])
         left_team_distance = np.linalg.norm(obs_left_team - obs['left_team'][player_num], axis=1, keepdims=True)
         left_team_speed = np.linalg.norm(obs_left_team_direction, axis=1, keepdims=True)
-        left_team_tired = np.delete(obs['left_team_tired_factor'], player_num, axis=0).reshape(-1,1)
+        left_team_tired = np.array(obs['left_team_tired_factor']).reshape(-1,1)
+        left_team_onehot = np.ones((11,1))
         left_team_state = np.concatenate((obs_left_team*2, obs_left_team_direction*100, left_team_speed*100, \
-                                          left_team_distance*2, left_team_tired), axis=1)
-        
-        left_closest_idx = np.argmin(left_team_distance)
-        left_closest_onehot = np.zeros(10)
-        left_closest_state = left_team_state[left_closest_idx]
-        
+                                          left_team_distance*2, left_team_tired, left_team_onehot), axis=1)
         
         obs_right_team = np.array(obs['right_team'])
         obs_right_team_direction = np.array(obs['right_team_direction'])
         right_team_distance = np.linalg.norm(obs_right_team - obs['left_team'][player_num], axis=1, keepdims=True)
         right_team_speed = np.linalg.norm(obs_right_team_direction, axis=1, keepdims=True)
         right_team_tired = np.array(obs['right_team_tired_factor']).reshape(-1,1)
+        right_team_onehot = - np.ones((11,1))
         right_team_state = np.concatenate((obs_right_team*2, obs_right_team_direction*100, right_team_speed*100, \
-                                           right_team_distance*2, right_team_tired), axis=1)
+                                           right_team_distance*2, right_team_tired, right_team_onehot), axis=1)
         
-        right_closest_idx = np.argmin(right_team_distance)
-        right_closest_onehot = np.zeros(11)
-        right_closest_state = right_team_state[right_closest_idx]
-        
-        left_repeat = np.ones(10)*11
-        right_repeat = np.ones(11)*10
-        left_closest_onehot[left_closest_idx] = 1
-        right_closest_onehot[right_closest_idx] = 1
+        all_team_state = np.concatenate((left_team_state, right_team_state), axis=0)
 
         state_dict = {'match_situation':match_situation,
                       'player_situation':player_situation,
@@ -156,13 +141,8 @@ class FeatureEncoder:
                       'ball_state':ball_state,
                       'left_team_state':left_team_state,
                       'right_team_state':right_team_state,
+                      'all_team_state':all_team_state,
                       "avail" : avail,
-                      "left_repeat": left_repeat,
-                      "right_repeat": right_repeat,
-                      "left_closest_onehot":left_closest_onehot,
-                      "left_closest":left_closest_state,
-                      "right_closest_onehot":right_closest_onehot,
-                      "right_closest":right_closest_state,
                       }
 
         return state_dict
