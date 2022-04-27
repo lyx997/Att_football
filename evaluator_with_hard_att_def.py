@@ -68,11 +68,11 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
     env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
-                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+                                          write_goal_dumps=False, write_full_episode_dumps=True, render=False, write_video=True)
     env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
-                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+                                          write_goal_dumps=False, write_full_episode_dumps=True, render=False, write_video=True)
     n_epi = 0
     while True: # episode loop
         seed = random.random()

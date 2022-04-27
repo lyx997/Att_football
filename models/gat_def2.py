@@ -27,7 +27,7 @@ class Model(nn.Module):
         self.fc_att_defence_ws = nn.Linear(48,48)
         self.fc_att_defence_as = nn.Linear(96,1)
 
-        self.fc_cat = nn.Linear(64*3+48*4,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(64*3+48*5,arg_dict["lstm_size"])
 
         self.norm_player_situation = nn.LayerNorm(64)
         self.norm_ball_situation = nn.LayerNorm(64)
@@ -80,24 +80,25 @@ class Model(nn.Module):
         player_att = F.softmax(player_att, dim=1) #(1,22,1)
         player_att_embed = F.elu(torch.bmm(player_att.permute(0,2,1), all_team_ws)).view(horizon, batch, -1)
 
-        player_sort3_att_idx = player_att.sort(dim=1)[1][:,:3,0] #(1,3,1)
+        player_sort4_att_idx = player_att.sort(dim=1)[1][:,:4,0] #(1,4,1)
 
         all_team_onehot_1 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_2 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_3 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
+        all_team_onehot_4 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
 
-        for i, idx in enumerate(player_sort3_att_idx):
+        for i, idx in enumerate(player_sort4_att_idx):
             all_team_onehot_1[i, idx[0], 0] = 1
-        for i, idx in enumerate(player_sort3_att_idx):
             all_team_onehot_2[i, idx[1], 0] = 1
-        for i, idx in enumerate(player_sort3_att_idx):
             all_team_onehot_3[i, idx[2], 0] = 1
+            all_team_onehot_4[i, idx[3], 0] = 1
 
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att2_embed = torch.bmm(all_team_onehot_2.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att3_embed = torch.bmm(all_team_onehot_3.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
+        all_team_att4_embed = torch.bmm(all_team_onehot_4.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
 
-        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_att_embed, all_team_att1_embed, all_team_att2_embed, all_team_att3_embed], -1)
+        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_att_embed, all_team_att1_embed, all_team_att2_embed, all_team_att3_embed, all_team_att4_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
@@ -115,9 +116,9 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        player_sort3_att_idx = player_sort3_att_idx.squeeze(0)
+        player_sort4_att_idx = player_sort4_att_idx.squeeze(0)
 
-        return prob, prob_m, v, h_out, player_sort3_att_idx
+        return prob, prob_m, v, h_out, player_sort4_att_idx
 
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
