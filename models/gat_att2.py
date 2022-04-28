@@ -16,22 +16,36 @@ class Model(nn.Module):
 
         self.arg_dict = arg_dict
 
-        self.fc_match_situation = nn.Linear(arg_dict['feature_dims']['match_situation'],64)
+        self.fc_match_situation = nn.Linear(arg_dict['feature_dims']['match_situation'],48)
+        self.fc_match2_situation = nn.Linear(48,48)
 
-        self.fc_player_situation = nn.Linear(arg_dict['feature_dims']['player_situation'],64)
+        self.fc_player_situation = nn.Linear(arg_dict['feature_dims']['player_situation'],48)
+        self.fc_player2_situation = nn.Linear(48,48)
 
-        self.fc_ball_situation = nn.Linear(arg_dict['feature_dims']['ball_situation'],64)
+        self.fc_ball_situation = nn.Linear(arg_dict['feature_dims']['ball_situation'],48)
+        self.fc_ball2_situation = nn.Linear(48,48)
 
+        self.fc_ball_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
+        self.fc_ball2_state = nn.Linear(48,48)
         self.fc_all_team_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
+        self.fc_all_team2_state = nn.Linear(48,48)
         
         self.fc_att_attack_ws = nn.Linear(48,48)
         self.fc_att_attack_as = nn.Linear(96,1)
 
-        self.fc_cat = nn.Linear(64*3+48*5,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(48*9,arg_dict["lstm_size"])
 
-        self.norm_player_situation = nn.LayerNorm(64)
-        self.norm_ball_situation = nn.LayerNorm(64)
-        self.norm_match_situation = nn.LayerNorm(64)
+        self.norm_player_situation = nn.LayerNorm(48)
+        self.norm_player2_situation = nn.LayerNorm(48)
+        self.norm_ball_situation = nn.LayerNorm(48)
+        self.norm_ball2_situation = nn.LayerNorm(48)
+        self.norm_match_situation = nn.LayerNorm(48)
+        self.norm_match2_situation = nn.LayerNorm(48)
+
+        self.norm_ball_state = nn.LayerNorm(48)
+        self.norm_ball2_state = nn.LayerNorm(48)
+        self.norm_all_team_state = nn.LayerNorm(48)
+        self.norm_all_team2_state = nn.LayerNorm(48)
         
         self.norm_cat = nn.LayerNorm(arg_dict["lstm_size"])
         
@@ -57,15 +71,23 @@ class Model(nn.Module):
         match_situation = state_dict["match_situation"]              
 
         player_state = state_dict["player_state"]          
+        ball_state = state_dict["ball_state"]          
         all_team_state = state_dict["all_team_state"] 
         avail = state_dict["avail"]
         
         match_sit_embed = F.relu(self.norm_match_situation(self.fc_match_situation(match_situation)))
+        match_sit_embed = F.relu(self.norm_match2_situation(self.fc_match2_situation(match_sit_embed)))
         player_sit_embed = F.relu(self.norm_player_situation(self.fc_player_situation(player_situation)))
+        player_sit_embed = F.relu(self.norm_player2_situation(self.fc_player2_situation(player_sit_embed)))
         ball_sit_embed = F.relu(self.norm_ball_situation(self.fc_ball_situation(ball_situation)))
+        ball_sit_embed = F.relu(self.norm_ball2_situation(self.fc_ball2_situation(ball_sit_embed)))
 
-        player_state_embed = F.relu(self.fc_all_team_state(player_state))
-        all_team_state_embed = F.relu(self.fc_all_team_state(all_team_state))
+        player_state_embed = F.relu(self.norm_all_team_state(self.fc_all_team_state(player_state)))
+        player_state_embed = F.relu(self.norm_all_team2_state(self.fc_all_team2_state(player_state_embed)))
+        ball_state_embed = F.relu(self.norm_ball_state(self.fc_ball_state(ball_state)))
+        ball_state_embed = F.relu(self.norm_ball2_state(self.fc_ball2_state(ball_state_embed)))
+        all_team_state_embed = F.relu(self.norm_all_team_state(self.fc_all_team_state(all_team_state)))
+        all_team_state_embed = F.relu(self.norm_all_team2_state(self.fc_all_team2_state(all_team_state_embed)))
 
         [horizon, batch, dim] = player_state_embed.size()
         player_state_embed = player_state_embed.view(horizon*batch, 1, dim)
@@ -78,20 +100,32 @@ class Model(nn.Module):
         player_ws = torch.cat([player_ws_repeat, all_team_ws], dim=-1)
         player_att = F.leaky_relu(self.fc_att_attack_as(player_ws))
         player_att = F.softmax(player_att, dim=1) #(1,22,1)
-        player_att_embed = F.elu(torch.bmm(player_att.permute(0,2,1), all_team_ws)).view(horizon, batch, -1)
+        #player_att_embed = F.elu(torch.bmm(player_att.permute(0,2,1), all_team_ws)).view(horizon, batch, -1)
 
-        player_sort4_att_idx = player_att.sort(dim=1)[1][:,:4,0] #(1,4,1)
+        player_sort4_att_idx = player_att.sort(dim=1)[1][:,:4] #(1,4,1)
 
         all_team_onehot_1 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_2 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_3 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_4 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
 
-        for i, idx in enumerate(player_sort4_att_idx):
-            all_team_onehot_1[i, idx[0], 0] = 1
-            all_team_onehot_2[i, idx[1], 0] = 1
-            all_team_onehot_3[i, idx[2], 0] = 1
-            all_team_onehot_4[i, idx[3], 0] = 1
+        all_team_scatter = torch.ones((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
+
+        index1 = player_sort4_att_idx[:,0].unsqueeze(1)
+        index2 = player_sort4_att_idx[:,1].unsqueeze(1)
+        index3 = player_sort4_att_idx[:,2].unsqueeze(1)
+        index4 = player_sort4_att_idx[:,3].unsqueeze(1)
+
+        all_team_onehot_1.scatter_(1, index1, all_team_scatter)
+        all_team_onehot_2.scatter_(1, index2, all_team_scatter)
+        all_team_onehot_3.scatter_(1, index3, all_team_scatter)
+        all_team_onehot_4.scatter_(1, index4, all_team_scatter)
+        
+        #for i, idx in enumerate(player_sort4_att_idx):
+        #    all_team_onehot_1[i, idx[0], 0] = 1
+        #    all_team_onehot_2[i, idx[1], 0] = 1
+        #    all_team_onehot_3[i, idx[2], 0] = 1
+        #    all_team_onehot_4[i, idx[3], 0] = 1
 
 
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
@@ -99,7 +133,8 @@ class Model(nn.Module):
         all_team_att3_embed = torch.bmm(all_team_onehot_3.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att4_embed = torch.bmm(all_team_onehot_4.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
 
-        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_att_embed, all_team_att1_embed, all_team_att2_embed, all_team_att3_embed, all_team_att4_embed], -1)
+        player_state_embed = player_state_embed.view(horizon, batch, -1)
+        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_state_embed, ball_state_embed, all_team_att1_embed, all_team_att2_embed, all_team_att3_embed, all_team_att4_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]

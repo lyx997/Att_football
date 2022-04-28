@@ -43,8 +43,8 @@ class FeatureEncoder:
             'right_team_closest':7,
 
             'match_situation':13,
-            'player_situation':29,
-            'ball_situation':18,
+            'player_situation':23,
+            'ball_situation':13,
 
             'player_state':8,
             'ball_state':8,
@@ -75,18 +75,14 @@ class FeatureEncoder:
         ball_x_speed, ball_y_speed, ball_z_speed = obs['ball_direction']
         ball_distance = np.linalg.norm([ball_x_relative, ball_y_relative])
         ball_speed = np.linalg.norm([ball_x_speed, ball_y_speed])
-        ball_owned = 0.0 
-        if obs['ball_owned_team'] == -1:
-            ball_owned = 0.0
-        else:
-            ball_owned = 1.0
-        ball_owned_by_us = 0.0
+        ball_owned_onehot = [0,0,0]
+     
         if obs['ball_owned_team'] == 0:
-            ball_owned_by_us = 1.0
-        elif obs['ball_owned_team'] == 1:
-            ball_owned_by_us = 0.0
+            ball_owned_onehot[0] = 1
+        elif obs['ball_owned_team'] == -1:
+            ball_owned_onehot[1] = 1
         else:
-            ball_owned_by_us = 0.0
+            ball_owned_onehot[2] = 1
             
         ball_which_zone = self._encode_ball_which_zone(ball_x, ball_y) 
         
@@ -100,17 +96,18 @@ class FeatureEncoder:
         steps_situation = self._get_steps(steps_left)
         match_situation = np.concatenate((steps_situation, score_situation)) #13
 
-        #player_situation = np.concatenate((avail[2:], player_role_onehot, [ball_far, is_dribbling, is_sprinting]))#23
-        player_situation = np.concatenate((avail[2:], obs['left_team'][player_num], player_direction*100, [player_speed*100],
-                                   player_role_onehot, [ball_far, player_tired, is_dribbling, is_sprinting]))
-        #ball_situation = np.concatenate((ball_which_zone, ball_relative_position, [ball_z, ball_z_speed, ball_owned, ball_owned_by_us]))#12
-        ball_situation = np.concatenate((np.array(obs['ball']), 
-                                     np.array(ball_which_zone),
-                                     np.array([ball_x_relative, ball_y_relative]),
-                                     np.array(obs['ball_direction'])*20,
-                                     np.array([ball_speed*20, ball_distance, ball_owned, ball_owned_by_us])))
+        player_situation = np.concatenate((avail[2:], player_role_onehot, [ball_far, is_dribbling, is_sprinting]))#23
+        #player_situation = np.concatenate((avail[2:], obs['left_team'][player_num], player_direction*100, [player_speed*100],
+        #                           player_role_onehot, [ball_far, player_tired, is_dribbling, is_sprinting]))
+        ball_situation = np.concatenate((ball_which_zone, ball_relative_position, [ball_z, ball_z_speed] , ball_owned_onehot))#13
+        #ball_situation = np.concatenate((np.array(obs['ball']), 
+        #                             np.array(ball_which_zone),
+        #                             np.array([ball_x_relative, ball_y_relative]),
+        #                             np.array(obs['ball_direction'])*20,
+        #                             np.array([ball_speed*20, ball_distance]),
+        #                             np.array(ball_owned_onehot)))
         
-        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired, 1]))
+        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired, 0]))
         ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, [ball_speed*20, ball_distance, 0., 0]))
         
 

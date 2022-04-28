@@ -130,6 +130,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 else:
                     obs, rew, done, info = env_right.att_step([real_action], [team_att_idx, opp_att_idx])
 
+                rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
                 state_prime_dict = fe1.encode(obs[0])
@@ -191,6 +192,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 else:
                     obs, rew, done, info = env_right.att_step([real_action], [team_att_idx, opp_att_idx])
 
+                rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
                 fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
                 state_prime_dict = fe1.encode(obs[0])
