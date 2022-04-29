@@ -133,7 +133,7 @@ if __name__ == '__main__':
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 60,  # should be less than the number of cpu cores in your workstation.
+        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6,
         "rollout_len": 30,

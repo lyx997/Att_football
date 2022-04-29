@@ -43,8 +43,11 @@ def calc_reward(rew, prev_obs, obs):
     elif owned_ball_team == 1 and owned_ball_team_prev == 0 :
         change_ball_owned_reward = -10.0
 
-            
-    reward = 5.0*win_reward + 5.0*rew + 0.003*ball_position_r + 0.3*yellow_r + 0.005*change_ball_owned_reward
-        
+    ball_not_owned_reward = 0.0
+    if owned_ball_team == 1:
+        ball_not_owned_reward = -1.0
 
+            
+    reward = 5.0*win_reward + 5.0*rew + 0.003*ball_position_r + 0.3*yellow_r + 0.01*change_ball_owned_reward + 0.003*ball_not_owned_reward
+        
     return reward

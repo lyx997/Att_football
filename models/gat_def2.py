@@ -17,35 +17,35 @@ class Model(nn.Module):
         self.arg_dict = arg_dict
 
         self.fc_match_situation = nn.Linear(arg_dict['feature_dims']['match_situation'],48)
-        self.fc_match2_situation = nn.Linear(48,48)
+        self.fc_match2_situation = nn.Linear(48,64)
 
         self.fc_player_situation = nn.Linear(arg_dict['feature_dims']['player_situation'],48)
-        self.fc_player2_situation = nn.Linear(48,48)
+        self.fc_player2_situation = nn.Linear(48,64)
 
         self.fc_ball_situation = nn.Linear(arg_dict['feature_dims']['ball_situation'],48)
-        self.fc_ball2_situation = nn.Linear(48,48)
+        self.fc_ball2_situation = nn.Linear(48,64)
 
         self.fc_ball_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
-        self.fc_ball2_state = nn.Linear(48,48)
+        self.fc_ball2_state = nn.Linear(48,64)
         self.fc_all_team_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
-        self.fc_all_team2_state = nn.Linear(48,48)
+        self.fc_all_team2_state = nn.Linear(48,64)
         
-        self.fc_att_attack_ws = nn.Linear(48,48)
-        self.fc_att_attack_as = nn.Linear(96,1)
+        self.fc_att_attack_ws = nn.Linear(64,64)
+        self.fc_att_attack_as = nn.Linear(128,1)
 
-        self.fc_cat = nn.Linear(48*9,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(64*9,arg_dict["lstm_size"])
 
         self.norm_player_situation = nn.LayerNorm(48)
-        self.norm_player2_situation = nn.LayerNorm(48)
+        self.norm_player2_situation = nn.LayerNorm(64)
         self.norm_ball_situation = nn.LayerNorm(48)
-        self.norm_ball2_situation = nn.LayerNorm(48)
+        self.norm_ball2_situation = nn.LayerNorm(64)
         self.norm_match_situation = nn.LayerNorm(48)
-        self.norm_match2_situation = nn.LayerNorm(48)
+        self.norm_match2_situation = nn.LayerNorm(64)
 
         self.norm_ball_state = nn.LayerNorm(48)
-        self.norm_ball2_state = nn.LayerNorm(48)
+        self.norm_ball2_state = nn.LayerNorm(64)
         self.norm_all_team_state = nn.LayerNorm(48)
-        self.norm_all_team2_state = nn.LayerNorm(48)
+        self.norm_all_team2_state = nn.LayerNorm(64)
         
         self.norm_cat = nn.LayerNorm(arg_dict["lstm_size"])
         
