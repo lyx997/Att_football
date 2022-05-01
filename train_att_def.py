@@ -135,9 +135,9 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def",
-        "rewarder" : "rewarder_att_def",
-        "model" : "gat_att_def5",
+        "encoder" : "encoder_gat_att_def_seperate",
+        "rewarder" : "rewarder_att_def2",
+        "model" : "gat_att3",
         "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

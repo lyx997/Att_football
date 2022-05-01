@@ -242,11 +242,11 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
-                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
     env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
-                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
     n_epi = 0
     while True: # episode loop
         seed = random.random()
@@ -284,17 +284,19 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, player_sort3_att_idx = model(state_dict_tensor)
+                team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
             forward_t += time.time()-t1 
     
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
             prev_obs = obs
             if our_team == 0:
-                obs, rew, done, info = env_left.step([real_action])
+                obs, rew, done, info = env_left.att_step([real_action], [team_att_idx,opp_att_idx])
             else:
-                obs, rew, done, info = env_right.step([real_action])
+                obs, rew, done, info = env_right.att_step([real_action], [team_att_idx,opp_att_idx])
 
+            rew = rew[0]
             fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
             state_prime_dict = fe1.encode(obs[0])
             
