@@ -32,8 +32,10 @@ class Model(nn.Module):
         
         self.fc_att_attack_ws = nn.Linear(64,64)
         self.fc_att_attack_as = nn.Linear(128,1)
+        self.fc_att_attack_ws2 = nn.Linear(64,64)
+        self.fc_att_attack_as2 = nn.Linear(128,1)
 
-        self.fc_cat = nn.Linear(64*9,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(64*13,arg_dict["lstm_size"])
 
         self.norm_player_situation = nn.LayerNorm(48)
         self.norm_player2_situation = nn.LayerNorm(64)
@@ -121,33 +123,43 @@ class Model(nn.Module):
         all_team_onehot_3.scatter_(1, index3, all_team_scatter)
         all_team_onehot_4.scatter_(1, index4, all_team_scatter)
         
-        #for i, idx in enumerate(player_sort4_att_idx):
-        #    all_team_onehot_1[i, idx[0], 0] = 1
-        #    all_team_onehot_2[i, idx[1], 0] = 1
-        #    all_team_onehot_3[i, idx[2], 0] = 1
-        #    all_team_onehot_4[i, idx[3], 0] = 1
-
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed)
         all_team_att2_embed = torch.bmm(all_team_onehot_2.permute(0,2,1), all_team_state_embed)
         all_team_att3_embed = torch.bmm(all_team_onehot_3.permute(0,2,1), all_team_state_embed)
         all_team_att4_embed = torch.bmm(all_team_onehot_4.permute(0,2,1), all_team_state_embed)
 
-        att1_player_ws = self.fc_att_attack_ws(all_team_att1_embed)
+        att1_player_ws = self.fc_att_attack_ws2(all_team_att1_embed)
         att1_ws_repeat = torch.repeat_interleave(att1_player_ws, repeats=n_all, dim=1)
-        #all_team_ws = self.fc_att_attack_ws(all_team_state_embed)#(1,22,48)
         att1_player_ws = torch.cat([att1_ws_repeat, all_team_ws], dim=-1)
-        att1_player_att = F.leaky_relu(self.fc_att_attack_as(att1_player_ws))
+        att1_player_att = F.leaky_relu(self.fc_att_attack_as2(att1_player_ws))
         att1_player_att_onehot = F.gumbel_softmax(att1_player_att, dim=1, hard=True) #(1,22,1)
+        att1_player_att_idx = att1_player_att_onehot.sort(dim=1)[1][:,:1] #(1,4,1)
 
-        att2_player_ws = self.fc_att_attack_ws(all_team_att2_embed)
+        att2_player_ws = self.fc_att_attack_ws2(all_team_att2_embed)
         att2_ws_repeat = torch.repeat_interleave(att2_player_ws, repeats=n_all, dim=1)
-        #all_team_ws = self.fc_att_attack_ws(all_team_state_embed)#(1,22,48)
         att2_player_ws = torch.cat([att2_ws_repeat, all_team_ws], dim=-1)
-        att2_player_att = F.leaky_relu(self.fc_att_attack_as(att2_player_ws))
+        att2_player_att = F.leaky_relu(self.fc_att_attack_as2(att2_player_ws))
         att2_player_att_onehot = F.gumbel_softmax(att2_player_att, dim=1, hard=True) #(1,22,1)
+        att2_player_att_idx = att2_player_att_onehot.sort(dim=1)[1][:,:1] #(1,4,1)
+
+        att3_player_ws = self.fc_att_attack_ws2(all_team_att3_embed)
+        att3_ws_repeat = torch.repeat_interleave(att3_player_ws, repeats=n_all, dim=1)
+        att3_player_ws = torch.cat([att3_ws_repeat, all_team_ws], dim=-1)
+        att3_player_att = F.leaky_relu(self.fc_att_attack_as2(att3_player_ws))
+        att3_player_att_onehot = F.gumbel_softmax(att3_player_att, dim=1, hard=True) #(1,22,1)
+        att3_player_att_idx = att3_player_att_onehot.sort(dim=1)[1][:,:1] #(1,4,1)
+
+        att4_player_ws = self.fc_att_attack_ws2(all_team_att4_embed)
+        att4_ws_repeat = torch.repeat_interleave(att4_player_ws, repeats=n_all, dim=1)
+        att4_player_ws = torch.cat([att4_ws_repeat, all_team_ws], dim=-1)
+        att4_player_att = F.leaky_relu(self.fc_att_attack_as2(att4_player_ws))
+        att4_player_att_onehot = F.gumbel_softmax(att4_player_att, dim=1, hard=True) #(1,22,1)
+        att4_player_att_idx = att4_player_att_onehot.sort(dim=1)[1][:,:1] #(1,4,1)
 
         att1_player_att_embed = torch.bmm(att1_player_att_onehot.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         att2_player_att_embed = torch.bmm(att2_player_att_onehot.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
+        att3_player_att_embed = torch.bmm(att3_player_att_onehot.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
+        att4_player_att_embed = torch.bmm(att4_player_att_onehot.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
 
         player_state_embed = player_state_embed.view(horizon, batch, -1)
         all_team_att1_embed = all_team_att1_embed.view(horizon, batch, -1)
@@ -155,7 +167,9 @@ class Model(nn.Module):
         all_team_att3_embed = all_team_att3_embed.view(horizon, batch, -1)
         all_team_att4_embed = all_team_att4_embed.view(horizon, batch, -1)
 
-        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_state_embed, ball_state_embed, all_team_att1_embed, att1_player_att_embed, all_team_att2_embed, att2_player_att_embed], -1)
+        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_state_embed, ball_state_embed, \
+                        all_team_att1_embed, att1_player_att_embed, all_team_att2_embed, att2_player_att_embed, \
+                        all_team_att3_embed, att3_player_att_embed, all_team_att4_embed, att4_player_att_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
@@ -173,9 +187,10 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        player_sort4_att_idx = player_sort4_att_idx.squeeze(0)
+        player_sort8_att_idx = torch.cat([player_sort4_att_idx, att1_player_att_idx, att2_player_att_idx, att3_player_att_idx, att4_player_att_idx], dim=1)
+        player_sort8_att_idx = player_sort8_att_idx.squeeze(0)
 
-        return prob, prob_m, v, h_out, player_sort4_att_idx
+        return prob, prob_m, v, h_out, player_sort8_att_idx
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
         s_match_sit_batch, s_player_sit_batch, s_ball_sit_batch, s_player_batch, s_ball_batch, s_team_batch, avail_batch = [],[],[],[],[],[],[]
