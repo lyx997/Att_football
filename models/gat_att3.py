@@ -32,8 +32,6 @@ class Model(nn.Module):
         
         self.fc_att_attack_ws = nn.Linear(64,64)
         self.fc_att_attack_as = nn.Linear(128,1)
-        self.fc_att_attack_ws2 = nn.Linear(64,64)
-        self.fc_att_attack_as2 = nn.Linear(128,1)
 
         self.fc_cat = nn.Linear(64*9,arg_dict["lstm_size"])
 
@@ -104,7 +102,7 @@ class Model(nn.Module):
         player_att = F.softmax(player_att, dim=1) #(1,22,1)
         #player_att_embed = F.elu(torch.bmm(player_att.permute(0,2,1), all_team_ws)).view(horizon, batch, -1)
 
-        player_sort2_att_idx = player_att.sort(dim=1)[1][:,:2] #(1,4,1)
+        player_sort2_att_idx = player_att.sort(dim=1, descending=True)[1][:,:2] #(1,4,1)
 
         all_team_onehot_1 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_2 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
@@ -119,21 +117,28 @@ class Model(nn.Module):
         all_team_onehot_1.scatter_(1, index1, all_team_scatter)
         all_team_onehot_2.scatter_(1, index2, all_team_scatter)
         
+        #for i, idx in enumerate(player_sort4_att_idx):
+        #    all_team_onehot_1[i, idx[0], 0] = 1
+        #    all_team_onehot_2[i, idx[1], 0] = 1
+        #    all_team_onehot_3[i, idx[2], 0] = 1
+        #    all_team_onehot_4[i, idx[3], 0] = 1
 
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed)
         all_team_att2_embed = torch.bmm(all_team_onehot_2.permute(0,2,1), all_team_state_embed)
 
-        att1_player_ws = self.fc_att_attack_ws2(all_team_att1_embed)
+        att1_player_ws = self.fc_att_attack_ws(all_team_att1_embed)
         att1_ws_repeat = torch.repeat_interleave(att1_player_ws, repeats=n_all, dim=1)
+        #all_team_ws = self.fc_att_attack_ws(all_team_state_embed)#(1,22,48)
         att1_player_ws = torch.cat([att1_ws_repeat, all_team_ws], dim=-1)
-        att1_player_att = F.leaky_relu(self.fc_att_attack_as2(att1_player_ws))
+        att1_player_att = F.leaky_relu(self.fc_att_attack_as(att1_player_ws))
         att1_player_att_onehot = F.gumbel_softmax(att1_player_att, dim=1, hard=True) #(1,22,1)
         att1_player_att_idx = att1_player_att_onehot.sort(dim=1)[1][:,:1] #(1,4,1)
 
-        att2_player_ws = self.fc_att_attack_ws2(all_team_att2_embed)
+        att2_player_ws = self.fc_att_attack_ws(all_team_att2_embed)
         att2_ws_repeat = torch.repeat_interleave(att2_player_ws, repeats=n_all, dim=1)
+        #all_team_ws = self.fc_att_attack_ws(all_team_state_embed)#(1,22,48)
         att2_player_ws = torch.cat([att2_ws_repeat, all_team_ws], dim=-1)
-        att2_player_att = F.leaky_relu(self.fc_att_attack_as2(att2_player_ws))
+        att2_player_att = F.leaky_relu(self.fc_att_attack_as(att2_player_ws))
         att2_player_att_onehot = F.gumbel_softmax(att2_player_att, dim=1, hard=True) #(1,22,1)
         att2_player_att_idx = att2_player_att_onehot.sort(dim=1)[1][:,:1] #(1,4,1)
 
@@ -144,8 +149,7 @@ class Model(nn.Module):
         all_team_att1_embed = all_team_att1_embed.view(horizon, batch, -1)
         all_team_att2_embed = all_team_att2_embed.view(horizon, batch, -1)
 
-        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_state_embed, ball_state_embed, all_team_att1_embed, att1_player_att_embed,
-                        all_team_att2_embed, att2_player_att_embed], -1)
+        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_state_embed, ball_state_embed, all_team_att1_embed, att1_player_att_embed, all_team_att2_embed, att2_player_att_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
@@ -167,7 +171,6 @@ class Model(nn.Module):
         player_sort4_att_idx = player_sort4_att_idx.squeeze(0)
 
         return prob, prob_m, v, h_out, player_sort4_att_idx
-
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
         s_match_sit_batch, s_player_sit_batch, s_ball_sit_batch, s_player_batch, s_ball_batch, s_team_batch, avail_batch = [],[],[],[],[],[],[]

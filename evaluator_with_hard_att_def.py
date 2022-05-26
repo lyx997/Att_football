@@ -249,7 +249,8 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                                           write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
     n_epi = 0
     while True: # episode loop
-        seed = random.random()
+        #seed = random.random()
+        seed = 0.1
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()

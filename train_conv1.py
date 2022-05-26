@@ -94,7 +94,7 @@ def main(arg_dict):
             p = mp.Process(target=actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
-    for i in range(5):
+    for i in range(0):
         if "env_evaluation" in arg_dict:
             p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
@@ -107,7 +107,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_stochastic",    
+        "env": "11_vs_11_competition",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)

@@ -102,7 +102,7 @@ class Model(nn.Module):
         player_att = F.softmax(player_att, dim=1) #(1,22,1)
         #player_att_embed = F.elu(torch.bmm(player_att.permute(0,2,1), all_team_ws)).view(horizon, batch, -1)
 
-        player_sort4_att_idx = player_att.sort(dim=1)[1][:,:4] #(1,4,1)
+        player_sort4_att_idx = player_att.sort(dim=1, descending=True)[1][:,:4] #(1,4,1)
 
         all_team_onehot_1 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)
         all_team_onehot_2 = torch.zeros((horizon*batch, n_all, 1), device=self.device) #(1,22,1)

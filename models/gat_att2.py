@@ -33,7 +33,7 @@ class Model(nn.Module):
         self.fc_att_attack_ws = nn.Linear(64,64)
         self.fc_att_attack_as = nn.Linear(128,1)
 
-        self.fc_cat = nn.Linear(64*9,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(64*7,arg_dict["lstm_size"])
 
         self.norm_player_situation = nn.LayerNorm(48)
         self.norm_player2_situation = nn.LayerNorm(64)
@@ -121,20 +121,12 @@ class Model(nn.Module):
         all_team_onehot_3.scatter_(1, index3, all_team_scatter)
         all_team_onehot_4.scatter_(1, index4, all_team_scatter)
         
-        #for i, idx in enumerate(player_sort4_att_idx):
-        #    all_team_onehot_1[i, idx[0], 0] = 1
-        #    all_team_onehot_2[i, idx[1], 0] = 1
-        #    all_team_onehot_3[i, idx[2], 0] = 1
-        #    all_team_onehot_4[i, idx[3], 0] = 1
-
-
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att2_embed = torch.bmm(all_team_onehot_2.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att3_embed = torch.bmm(all_team_onehot_3.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
         all_team_att4_embed = torch.bmm(all_team_onehot_4.permute(0,2,1), all_team_state_embed).view(horizon, batch, -1)
 
-        player_state_embed = player_state_embed.view(horizon, batch, -1)
-        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, player_state_embed, ball_state_embed, all_team_att1_embed, all_team_att2_embed, all_team_att3_embed, all_team_att4_embed], -1)
+        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, all_team_att1_embed, all_team_att2_embed, all_team_att3_embed, all_team_att4_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]

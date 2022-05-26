@@ -112,7 +112,7 @@ def write_summary(writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst
     writer.add_scalar('train/entropy', np.mean(entropy_lst), n_game)
     writer.add_scalar('train/move_entropy', np.mean(move_entropy_lst), n_game)
 
-    mini_window = int(arg_dict['summary_game_window'])
+    mini_window = int(arg_dict['summary_game_window'] // 3)
     if len(win_evaluation)>=mini_window:
         writer.add_scalar('game/win_rate_evaluation', float(np.mean(win_evaluation)), n_game)
         writer.add_scalar('game/score_evaluation', float(np.mean(score_evaluation)), n_game)
@@ -294,4 +294,4 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
             
         else:
             time.sleep(0.1)
-            
+           

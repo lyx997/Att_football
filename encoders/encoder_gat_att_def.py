@@ -43,19 +43,19 @@ class FeatureEncoder:
         dims = {
             'player':29,
             'ball':18,
-            'left_team':7,
-            'left_team_closest':7,
-            'right_team':7,
-            'right_team_closest':7,
+            'left_team':10,
+            'left_team_closest':10,
+            'right_team':10,
+            'right_team_closest':10,
 
             'match_situation':13,
             'player_situation':29,
             'ball_situation':18,
 
-            'player_state':7,
-            'ball_state':7,
-            'left_team_state':7,
-            'right_team_state':7,
+            'player_state':10,
+            'ball_state':10,
+            'left_team_state':10,
+            'right_team_state':10,
         }
         return dims
 
@@ -115,8 +115,8 @@ class FeatureEncoder:
                                      np.array(obs['ball_direction'])*20,
                                      np.array([ball_speed*20, ball_distance, ball_owned, ball_owned_by_us])))
         
-        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired]))
-        ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, [ball_speed*20, ball_distance, 0.]))
+        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired, 1, 0, 0]))
+        ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, [ball_speed*20, ball_distance, 0., 0, 0, 1]))
         
 
         obs_left_team = np.delete(obs['left_team'], player_num, axis=0)
@@ -124,8 +124,10 @@ class FeatureEncoder:
         left_team_distance = np.linalg.norm(obs_left_team - obs['left_team'][player_num], axis=1, keepdims=True)
         left_team_speed = np.linalg.norm(obs_left_team_direction, axis=1, keepdims=True)
         left_team_tired = np.delete(obs['left_team_tired_factor'], player_num, axis=0).reshape(-1,1)
+        left_team_onehot = np.zeros((10,3))
+        left_team_onehot[:,0] = 1
         left_team_state = np.concatenate((obs_left_team*2, obs_left_team_direction*100, left_team_speed*100, \
-                                          left_team_distance*2, left_team_tired), axis=1)
+                                          left_team_distance*2, left_team_tired, left_team_onehot), axis=1)
         
         left_closest_idx = np.argmin(left_team_distance)
         left_closest_onehot = np.zeros(10)
@@ -137,8 +139,10 @@ class FeatureEncoder:
         right_team_distance = np.linalg.norm(obs_right_team - obs['left_team'][player_num], axis=1, keepdims=True)
         right_team_speed = np.linalg.norm(obs_right_team_direction, axis=1, keepdims=True)
         right_team_tired = np.array(obs['right_team_tired_factor']).reshape(-1,1)
+        right_team_onehot = np.zeros((11,3))
+        right_team_onehot[:,1] = 1
         right_team_state = np.concatenate((obs_right_team*2, obs_right_team_direction*100, right_team_speed*100, \
-                                           right_team_distance*2, right_team_tired), axis=1)
+                                           right_team_distance*2, right_team_tired, right_team_onehot), axis=1)
         
         right_closest_idx = np.argmin(right_team_distance)
         right_closest_onehot = np.zeros(11)

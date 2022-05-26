@@ -52,15 +52,16 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
-                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
     env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
-                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
     
     n_epi = 0
     while True: # episode loop
-        seed = random.random()
+        #seed = random.random()
+        seed = 0.1
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()
@@ -100,7 +101,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, _ = model(state_dict_tensor)
                 #opp_a_prob, opp_m_prob, _, opp_h_out = opp_model(opp_state_dict_tensor)
             forward_t += time.time()-t1 
 
@@ -109,10 +110,11 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
 
             prev_obs = obs
             if our_team == 0:
-                obs, rew, done, info = env_left.step([real_action])
+                obs, rew, done, info = env_left.att_step([real_action],[[],[],[]])
             else:
-                obs, rew, done, info = env_right.step([real_action])
+                obs, rew, done, info = env_right.att_step([real_action],[[],[],[]])
 
+            rew = rew[0]
             fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
             state_prime_dict = fe1.encode(obs[0])
             

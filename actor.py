@@ -75,7 +75,7 @@ def integrat_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
     rollout = []
     
     while True: # episode loop
-        seed = random.random()
+        seed = 0.1
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()
@@ -371,7 +371,8 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
     n_epi = 0
     rollout = []
     while True: # episode loop
-        seed = random.random()
+        #seed = random.random()
+        seed = 0.1
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()
@@ -405,17 +406,18 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, _ = model(state_dict_tensor)
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
 
             prev_obs = obs
 
             if our_team == 0:
-                obs, rew, done, info = env_left.step(real_action)
+                obs, rew, done, info = env_left.att_step(real_action,[[],[],[]])
             else:
-                obs, rew, done, info = env_right.step(real_action)
+                obs, rew, done, info = env_right.att_step(real_action,[[],[],[]])
 
+            rew=rew[0]
             fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
             state_prime_dict = fe.encode(obs[0])
             

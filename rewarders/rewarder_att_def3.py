@@ -48,6 +48,6 @@ def calc_reward(rew, prev_obs, obs):
         ball_not_owned_reward = -1.0
 
             
-    reward = 5.0*win_reward + 5.0*rew + 0.003*ball_position_r + 0.3*yellow_r + 0.5*change_ball_owned_reward #0.1
+    reward = 5.0*win_reward + 5.0*rew + 0.003*ball_position_r + 0.3*yellow_r + 0.1*change_ball_owned_reward #0.1
         
     return reward
