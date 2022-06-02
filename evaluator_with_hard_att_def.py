@@ -272,9 +272,9 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             init_t = time.time()
 
             is_stopped = False
-            while signal_queue.qsize() > 0:
-                time.sleep(0.02)
-                is_stopped = True
+            #while signal_queue.qsize() > 0:
+            #    time.sleep(0.02)
+            #    is_stopped = True
             if is_stopped:
                 pass
             wait_t += time.time() - init_t

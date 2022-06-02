@@ -494,7 +494,8 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
     n_epi = 0
     rollout = []
     while True: # episode loop
-        seed = random.random()
+        #seed = random.random()
+        seed = 0.1
         opp_model_num, opp_model_path = select_opponent(arg_dict)
         checkpoint = torch.load(opp_model_path, map_location=cpu_device)
         opp_model.load_state_dict(checkpoint['model_state_dict'])
@@ -537,8 +538,8 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out = model(state_dict_tensor)
-                opp_a_prob, opp_m_prob, _, opp_h_out = opp_model(opp_state_dict_tensor)
+                a_prob, m_prob, _, h_out, _ = model(state_dict_tensor)
+                opp_a_prob, opp_m_prob, _, opp_h_out, _ = opp_model(opp_state_dict_tensor)
             forward_t += time.time()-t1 
             
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -547,9 +548,9 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             prev_obs = obs
 
             if seed < 0.5:
-                [obs, opp_obs], [rew, _], done, info = env_left.step([real_action, opp_real_action])
+                [obs, opp_obs], [rew, _], done, info = env_left.att_step([real_action, opp_real_action], [[],[]])
             else:
-                [opp_obs, obs], [_, rew], done, info = env_right.step([opp_real_action, real_action])
+                [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [[],[]])
 
             fin_r = rewarder.calc_reward(rew, prev_obs, obs)
             state_prime_dict = fe.encode(obs)
@@ -568,9 +569,6 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             steps += 1
             score += rew
             tot_reward += fin_r
-            
-            if arg_dict['print_mode']:
-                print_status(steps,a,m,prob_selected_a,prob_selected_m,prev_obs,obs,fin_r,tot_reward)
             
             loop_t += time.time()-init_t
 

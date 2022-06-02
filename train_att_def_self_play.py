@@ -39,7 +39,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_reward1"
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_selfplay"
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
     arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
     arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
@@ -90,7 +90,7 @@ def main(arg_dict):
     p.start()
     processes.append(p)
     for rank in range(arg_dict["num_processes"]):
-        if arg_dict["env"] == "11_vs_11_selfplay":
+        if arg_dict["env"] == "11_vs_11_kaggle":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
             p = mp.Process(target=integrat_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
@@ -109,7 +109,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_stochastic",    
+        "env": "11_vs_11_kaggle",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
@@ -140,7 +140,7 @@ if __name__ == '__main__':
         "model" : "gat_att_def6_latest",
         "algorithm" : "ppo_with_lstm",
 
-        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_kaggle'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)
