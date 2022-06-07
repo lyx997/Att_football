@@ -113,8 +113,8 @@ if __name__ == '__main__':
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
-        "batch_size": 32,   
+        "num_processes": 60,  # should be less than the number of cpu cores in your workstation.
+        "batch_size": 64,   
         "buffer_size": 6,
         "rollout_len": 30,
 
@@ -135,9 +135,9 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def",
+        "encoder" : "encoder_gat_att_def_seperate",
         "rewarder" : "rewarder_att_def",
-        "model" : "gat_att_def10",
+        "model" : "gat_att5",
         "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

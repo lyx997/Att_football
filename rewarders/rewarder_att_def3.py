@@ -1,6 +1,6 @@
 import numpy as np
 
-def calc_reward(rew, prev_obs, obs):
+def calc_reward(rew, prev_obs, obs, prev_team_att):
     ball_x, ball_y, ball_z = obs['ball']
     MIDDLE_X, PENALTY_X, END_X = 0.2, 0.64, 1.0
     PENALTY_Y, END_Y = 0.27, 0.42
@@ -47,7 +47,11 @@ def calc_reward(rew, prev_obs, obs):
     if owned_ball_team == 1:
         ball_not_owned_reward = -1.0
 
+    attention_reward = 0.0
+    if obs['active'] == prev_team_att[0]:
+        attention_reward = 1.0
+
             
-    reward = 5.0*win_reward + 5.0*rew + 0.003*ball_position_r + 0.3*yellow_r + 0.1*change_ball_owned_reward #0.1
+    reward = 5.0*win_reward + 5.0*rew + 0.003*ball_position_r + 0.3*yellow_r + 0.03*change_ball_owned_reward + 0.01*attention_reward
         
     return reward
