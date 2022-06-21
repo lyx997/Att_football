@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 from actor import *
 from learner import *
 #from evaluator_with_hard import evaluator
-from evaluator import evaluator
+from evaluator_with_hard_att_def import evaluator
 from datetime import datetime, timedelta
 
 
@@ -36,7 +36,11 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S")
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_selfplay_reward3"
+    arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
+    arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
+    arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
+
     save_args(arg_dict)
     if arg_dict["trained_model_path"] and 'kaggle' in arg_dict['env']: 
         copy_models(os.path.dirname(arg_dict['trained_model_path']), arg_dict['log_dir'])
@@ -128,12 +132,12 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat3",
-        "rewarder" : "rewarder_basic",
-        "model" : "gat_att_def3",#add left right closest
-        "algorithm" : "ppo",
+        "encoder" : "encoder_gat_att_def",
+        "rewarder" : "rewarder_att_def3",
+        "model" : "team_opp_attention5",#add left right closest
+        "algorithm" : "ppo_with_lstm",
 
-        "env_evaluation":'logs/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

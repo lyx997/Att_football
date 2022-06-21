@@ -11,6 +11,25 @@ from os import listdir
 from os.path import isfile, join
 from datetime import datetime, timedelta
 
+def split_att_def_idx(attack_att, active_idx):
+    attack_right_idx1 = attack_att[0].sort(descending=True)[1]
+    attack_right_idx2 = attack_att[1].sort(descending=True)[1]
+    attack_left_idx = attack_att[2].sort(descending=True)[1]
+    
+    for i, idx in enumerate(attack_left_idx):
+        if idx >= active_idx:
+            attack_left_idx[i] = idx + 1
+
+    att_idx = [attack_left_idx, attack_right_idx1, attack_right_idx2]
+
+    return att_idx
+
+def find_most_att_idx(player_att2_idx, active_idx):
+    most_att_idx = player_att2_idx.sort(descending=True)[1][0]
+    if most_att_idx >= active_idx:
+        most_att_idx += 1
+    return most_att_idx
+
 def split_att_idx(all_sorted_idx):
     team_att_idx_list = []
     opp_att_idx_list = []
@@ -68,14 +87,15 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
     env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
-                                          write_goal_dumps=False, write_full_episode_dumps=True, render=False, write_video=True)
+                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
     env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
                                           write_goal_dumps=False, write_full_episode_dumps=True, render=False, write_video=True)
     n_epi = 0
     while True: # episode loop
-        seed = random.random()
+        seed = 0.1
+        #seed = random.random()
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()
@@ -94,6 +114,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
         loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
 
         ball_owned_team = obs[0]["ball_owned_team"] #-1
+        ball_x = obs[0]["ball"][0]
 
         while not done:  # step loop
         
@@ -101,7 +122,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             while not done:  # step loop
                 init_t = time.time()
 
-                if ball_owned_team == 1: #ball owned by opp change to model_def
+                if ball_owned_team == 1 and ball_x < 0: #ball owned by opp change to model_def
                     break
 
                 is_stopped = False
@@ -118,21 +139,23 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out, player_sort3_att_idx = model_att(state_dict_tensor)
-                    team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
+                    a_prob, m_prob, _, h_out, player_att_idx = model_att(state_dict_tensor)
+                    active_idx = obs[0]["active"]
+                    most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
                 prev_obs = obs
                 if our_team == 0:
-                    obs, rew, done, info = env_left.att_step([real_action], [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_left.att_step([real_action], [])
                 else:
-                    obs, rew, done, info = env_right.att_step([real_action], [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_right.att_step([real_action], [])
 
                 rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
-                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+                ball_x = obs[0]["ball"][0]
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx, True)
                 state_prime_dict = fe1.encode(obs[0])
                 
 
@@ -163,7 +186,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             while not done:  # step loop
                 init_t = time.time()
 
-                if ball_owned_team == 0: #ball owned by us so change to model_att
+                if ball_owned_team == 0 or ball_x >= 0: #ball owned by us so change to model_att
                     break
 
                 is_stopped = False
@@ -180,21 +203,22 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out, player_sort3_att_idx = model_def(state_dict_tensor)
-                    team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
+                    a_prob, m_prob, _, h_out, player_def_idx = model_def(state_dict_tensor)
+                    most_att_idx = find_most_att_idx(player_def_idx[2], 20)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
                 prev_obs = obs
                 if our_team == 0:
-                    obs, rew, done, info = env_left.att_step([real_action], [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_left.att_step([real_action], [])
                 else:
-                    obs, rew, done, info = env_right.att_step([real_action], [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_right.att_step([real_action], [])
 
                 rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
-                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+                ball_x = obs[0]["ball"][0]
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx, False)
                 state_prime_dict = fe1.encode(obs[0])
                 
                 (h1_in, h2_in) = h_in
@@ -219,6 +243,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                     summary_data = (win, score, tot_reward, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)
                     summary_queue.put(summary_data)
 
+
 def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     print("Evaluator process started")
     fe_module1 = importlib.import_module("encoders." + arg_dict["encoder"])
@@ -242,7 +267,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
-                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
+                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
     env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
@@ -285,20 +310,23 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, player_sort3_att_idx = model(state_dict_tensor)
-                team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
+                a_prob, m_prob, _, h_out, player_att_idx = model(state_dict_tensor)
+                active_idx = obs[0]["active"]
+                #most_att_idx = find_most_att_idx(player_att_idx, active_idx)
+                att_idx = split_att_def_idx(player_att_idx, active_idx)
+
             forward_t += time.time()-t1 
     
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
             prev_obs = obs
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step([real_action], [team_att_idx,opp_att_idx])
+                obs, rew, done, info = env_left.att_step([real_action], [[], []])
             else:
-                obs, rew, done, info = env_right.att_step([real_action], [team_att_idx,opp_att_idx])
+                obs, rew, done, info = env_right.att_step([real_action], [[], []])
 
             rew = rew[0]
-            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], att_idx[2][0])
             state_prime_dict = fe1.encode(obs[0])
             
             (h1_in, h2_in) = h_in
@@ -319,6 +347,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
 
                 if our_team == 0:
                     print("model in left evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
+                    print("left_idx:",att_idx[0], "player_right_idx:", att_idx[1], "left_right_idx:", att_idx[2])
                 else:
                     print("model in right evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
                 summary_data = (win, score, tot_reward, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)

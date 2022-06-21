@@ -45,17 +45,17 @@ class Model(nn.Module):
         #self.fc_left2_state = nn.Linear(36, 64)
         #self.fc_right2_state = nn.Linear(36, 64)
 
-        self.fc_att1_attack_ws = nn.Linear(64,64)
+        self.fc_att1_attack_ws = nn.Linear(arg_dict["feature_dims"]["player_state"],64)
         self.fc_att1_attack_as = nn.Linear(128,1)
         self.fc_att2_attack_ws = nn.Linear(64,64)
-        self.fc_att2_attack_as = nn.Linear(128,1)
-
-        self.fc_att1_defence_ws = nn.Linear(64,64)
+        self.fc_att2_attack_as = nn.Linear(128,1)      
+       
+        self.fc_att1_defence_ws = nn.Linear(arg_dict["feature_dims"]["player_state"],64)
         self.fc_att1_defence_as = nn.Linear(128,1)
         self.fc_att2_defence_ws = nn.Linear(64,64)
         self.fc_att2_defence_as = nn.Linear(128,1)
 
-        self.fc_cat = nn.Linear(64*9,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(252,arg_dict["lstm_size"])
 
         self.norm_player_situation = nn.LayerNorm(64)
         #self.norm_player2_situation = nn.LayerNorm(64)
@@ -109,37 +109,28 @@ class Model(nn.Module):
         ball_sit_embed = F.relu(self.norm_ball_situation(self.fc_ball_situation(ball_situation)))
         #ball_sit_embed = F.relu(self.norm_ball2_situation(self.fc_ball2_situation(ball_sit_embed)))
 
-        #player_state_embed = F.relu(self.norm_player2_state(self.fc_player2_state(F.relu(self.norm_player_state(self.fc_player_state(player_state))))))
-        player_state_embed = F.relu(self.norm_player_state(self.fc_player_state(player_state)))
-        #ball_state_embed = F.relu(self.norm_ball2_state(self.fc_ball2_state(F.relu(self.norm_ball_state(self.fc_ball_state(ball_state))))))
-        ball_state_embed = F.relu(self.norm_ball_state(self.fc_ball_state(ball_state)))
-        #left_team_state_embed = F.relu(self.norm_left2_state(self.fc_left2_state(F.relu(self.norm_left_state(self.fc_left_state(left_team_state))))))  # horizon, batch, n, dim
-        left_team_state_embed = F.relu(self.norm_left_state(self.fc_left_state(left_team_state)))  # horizon, batch, n, dim
-        #right_team_state_embed = F.relu(self.norm_right2_state(self.fc_right2_state(F.relu(self.norm_right_state(self.fc_right_state(right_team_state))))))
-        right_team_state_embed = F.relu(self.norm_right_state(self.fc_right_state(right_team_state)))
-
-        [horizon, batch, dim] = player_state_embed.size()
-        player_state_embed = player_state_embed.view(horizon*batch, 1, dim)
-        [horizon, batch, dim] = ball_state_embed.size()
-        ball_state_embed = ball_state_embed.view(horizon*batch, 1, dim)
-        [horizon, batch, n_left, dim] = left_team_state_embed.size()
-        left_team_state_embed = left_team_state_embed.view(horizon*batch, n_left, dim)
-        [horizon, batch, n_right, dim] = right_team_state_embed.size()
-        right_team_state_embed = right_team_state_embed.view(horizon*batch, n_right, dim)
+        [horizon, batch, dim] = player_state.size()
+        player_state_embed = player_state.view(horizon*batch, 1, dim)
+        [horizon, batch, dim] = ball_state.size()
+        ball_state_embed = ball_state.view(horizon*batch, 1, dim)
+        [horizon, batch, n_left, dim] = left_team_state.size()
+        left_team_state_embed = left_team_state.view(horizon*batch, n_left, dim)
+        [horizon, batch, n_right, dim] = right_team_state.size()
+        right_team_state_embed = right_team_state.view(horizon*batch, n_right, dim)
  
         # 1 layer attention ----- Right team embed to Player, Left team
         player_right_ws1 = self.fc_att1_attack_ws(player_state_embed)
         player_right_ws1_repeat = torch.repeat_interleave(player_right_ws1, repeats=n_right+1, dim=1)
         right_player_ws1 = self.fc_att1_attack_ws(right_team_state_embed)#(1,11,64)
-        right_player_ws1 = torch.cat([player_right_ws1, right_player_ws1], dim=1)
+        right_player_ws1 = torch.cat([player_right_ws1, right_player_ws1], dim=1)#(1,12,64)
         player_ws1 = torch.cat([player_right_ws1_repeat, right_player_ws1], dim=-1)
-        player_att1 = self.fc_att1_attack_as(player_ws1)
+        player_att1 = F.leaky_relu(self.fc_att1_attack_as(player_ws1))
         player_right_att1 = player_att1[:,1:,:]
         #player_right_att1_ = F.gumbel_softmax(player_right_att1, dim=1, hard=True) #(1*10,11,1)
         player_right_att1 = F.softmax(player_right_att1, dim=1) #(1*10,11,1)
         #player_att1_ = F.gumbel_softmax(player_att1, dim=1, hard=True) #(1,11,1)
         player_att1 = F.softmax(player_att1, dim=1) #(1,11,1)
-        player_right_embed = torch.bmm(player_att1.permute(0,2,1), right_player_ws1)
+        player_right_embed = F.elu(torch.bmm(player_att1.permute(0,2,1), right_player_ws1))
         #player_right_embed = torch.add(player_right_ws1, right_att1_player_embed)
         
         ball_left_ws1 = self.fc_att1_defence_ws(ball_state_embed)
@@ -147,31 +138,31 @@ class Model(nn.Module):
         left_ball_ws1 = self.fc_att1_defence_ws(left_team_state_embed)
         left_ball_ws1 = torch.cat([ball_left_ws1, left_ball_ws1], dim=1)
         ball_ws1 = torch.cat([ball_left_ws1_repeat, left_ball_ws1], dim=-1)
-        ball_att1 = self.fc_att1_defence_as(ball_ws1)
+        ball_att1 = F.leaky_relu(self.fc_att1_defence_as(ball_ws1))
         ball_left_att1 = ball_att1[:,1:,:]
         #ball_left_att1_ = F.gumbel_softmax(ball_left_att1, dim=1, hard=True) #(1*10,11,1)
         ball_left_att1 = F.softmax(ball_left_att1, dim=1) #(1*10,11,1)
         #ball_att1_ = F.gumbel_softmax(ball_att1, dim=1, hard=True) #(1,11,1)
         #ball_att1_ = F.softmax(ball_att1, dim=1) #(1,11,1)
         ball_att1 = F.softmax(ball_att1, dim=1) #(1,11,1)
-        ball_left_embed = torch.bmm(ball_att1.permute(0,2,1), left_ball_ws1)
+        ball_left_embed = F.elu(torch.bmm(ball_att1.permute(0,2,1), left_ball_ws1))
         #ball_left_embed = torch.add(ball_left_ws1, left_att1_ball_embed)
 
-        right_team_embed_repeat = torch.repeat_interleave(right_team_state_embed, repeats=n_left+1, dim=1)
-        left_team_embed_repeat = torch.repeat_interleave(left_team_state_embed, repeats=n_right, dim=0)
-        left_team_embed_repeat = left_team_embed_repeat.view(horizon*batch, n_left*n_right, -1)
+        right_team_embed_repeat = torch.repeat_interleave(right_team_state_embed, repeats=n_left+1, dim=1)#(1,121,64)
+        left_team_embed_repeat = torch.repeat_interleave(left_team_state_embed, repeats=n_right, dim=0)#(11,10,64)
+        left_team_embed_repeat = left_team_embed_repeat.view(horizon*batch, n_left*n_right, -1)#(1,110,64)
 
-        right_team_left_ws1 = self.fc_att1_defence_ws(right_team_state_embed)
-        right_team_left_ws1_repeat = self.fc_att1_defence_ws(right_team_embed_repeat)
-        right_team_left_ws1_repeat = right_team_left_ws1_repeat.view(horizon*batch*n_right, n_left+1, -1)
+        right_team_left_ws1 = self.fc_att1_defence_ws(right_team_state_embed)#(1,11,64)
+        right_team_left_ws1_repeat = self.fc_att1_defence_ws(right_team_embed_repeat)#(1,121,64)
+        right_team_left_ws1_repeat = right_team_left_ws1_repeat.view(horizon*batch*n_right, n_left+1, -1)#(11,11,64)
 
         left_right_ws1 = self.fc_att1_defence_ws(left_team_embed_repeat)
-        left_right_ws1 = left_right_ws1.view(horizon*batch*n_right, n_left, -1)
-        right_team_left_ws1 = right_team_left_ws1.view(horizon*batch*n_right, 1, -1)
+        left_right_ws1 = left_right_ws1.view(horizon*batch*n_right, n_left, -1)#(11,10,64)
+        right_team_left_ws1 = right_team_left_ws1.view(horizon*batch*n_right, 1, -1)#(11,1,64)
         left_right_ws1 = torch.cat([right_team_left_ws1, left_right_ws1], dim=1)
 
         right_team_ws1 = torch.cat([right_team_left_ws1_repeat, left_right_ws1], dim=-1)
-        right_team_att1 = self.fc_att1_defence_as(right_team_ws1)
+        right_team_att1 = F.leaky_relu(self.fc_att1_defence_as(right_team_ws1))
         right_left_team_att1 = right_team_att1[:,1:,:]
         #right_left_team_att1_ = F.gumbel_softmax(right_left_team_att1, dim=1, hard=True) #(1*10,11,1)
         right_left_team_att1 = F.softmax(right_left_team_att1, dim=1) #(1*10,11,1)
@@ -197,7 +188,7 @@ class Model(nn.Module):
         right_left_ws1 = torch.cat([left_team_right_ws1, right_left_ws1], dim=1)
 
         left_team_ws1 = torch.cat([left_team_right_ws1_repeat, right_left_ws1], dim=-1)
-        left_team_att1 = self.fc_att1_attack_as(left_team_ws1)
+        left_team_att1 = F.leaky_relu(self.fc_att1_attack_as(left_team_ws1))
         left_right_team_att1 = left_team_att1[:,1:,:]
         #left_right_team_att1_ = F.gumbel_softmax(left_right_team_att1, dim=1, hard=True) #(1*10,11,1)
         left_right_team_att1 = F.softmax(left_right_team_att1, dim=1) #(1*10,11,1)
@@ -215,7 +206,7 @@ class Model(nn.Module):
         player_left_ws2_repeat = torch.repeat_interleave(player_left_ws2, repeats=n_left, dim=1)
         left_player_ws2 = self.fc_att2_attack_ws(left_right_embed)
         player_ws2 = torch.cat([player_left_ws2_repeat, left_player_ws2], dim=-1)
-        player_att2 = self.fc_att2_attack_as(player_ws2)
+        player_att2 = F.leaky_relu(self.fc_att2_attack_as(player_ws2))
         #player_att2_ = F.gumbel_softmax(player_att2, dim=1, hard=True)#(1,10,1)
         player_att2 = F.softmax(player_att2, dim=1)#(1,10,1)
 
@@ -223,7 +214,7 @@ class Model(nn.Module):
         ball_right_ws2_repeat = torch.repeat_interleave(ball_right_ws2, repeats=n_right, dim=1)
         right_ball_ws2 = self.fc_att2_defence_ws(right_left_embed)
         ball_ws2 = torch.cat([ball_right_ws2_repeat, right_ball_ws2], dim=-1)
-        ball_att2 = self.fc_att2_defence_as(ball_ws2)
+        ball_att2 = F.leaky_relu(self.fc_att2_defence_as(ball_ws2))
         #ball_att2_ = F.gumbel_softmax(ball_att2, dim=1, hard=True)
         ball_att2 = F.softmax(ball_att2, dim=1)
 
@@ -269,8 +260,9 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        return prob, prob_m, v, h_out, [player_right_att1.squeeze(0).squeeze(1).squeeze(0), right_left_player_att1.squeeze(0).squeeze(1).squeeze(0), player_att2.squeeze(0).squeeze(1).squeeze(0)], \
-                [ball_left_att1.squeeze(0).squeeze(1).squeeze(0), left_right_ball_att1.squeeze(0).squeeze(1).squeeze(0), ball_att2.squeeze(0).squeeze(1).squeeze(0)]
+        return prob, prob_m, v, h_out, player_att2.squeeze(0).squeeze(1).squeeze(0) 
+        #return prob, prob_m, v, h_out, [player_right_att1.squeeze(0).squeeze(1).squeeze(0), right_left_player_att1.squeeze(0).squeeze(1).squeeze(0), player_att2.squeeze(0).squeeze(1).squeeze(0)], \
+        #        [ball_left_att1.squeeze(0).squeeze(1).squeeze(0), left_right_ball_att1.squeeze(0).squeeze(1).squeeze(0), ball_att2.squeeze(0).squeeze(1).squeeze(0)]
 
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size

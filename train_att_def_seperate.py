@@ -41,7 +41,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_gat_att_def_seperate_update"
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_team_attention_opp_attention_seperate_" + arg_dict["rewarder"]
     arg_dict["log_dir_att"] = arg_dict["log_dir"] + '/att'
     arg_dict["log_dir_def"] = arg_dict["log_dir"] + '/def'
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
@@ -140,8 +140,8 @@ if __name__ == '__main__':
 
         "lstm_size": 256,
         "k_epoch" : 3,
-        "learning_rate" : 0.00001,
-        "gamma" : 0.993,
+        "learning_rate" : 0.0001,
+        "gamma" : 0.99,
         "lmbda" : 0.96,
         "entropy_coef" : 0.0001,
         "grad_clip" : 3.0,
@@ -155,10 +155,10 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def_seperate",
-        "rewarder" : "rewarder_att_def2",
-        "model_att" : "gat_att2",#add left right closest
-        "model_def" : "gat_def2",#add left right closest
+        "encoder" : "encoder_gat_att_def",
+        "rewarder" : "rewarder_att_def5",
+        "model_att" : "team_attention2",
+        "model_def" : "opp_attention2",
         "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

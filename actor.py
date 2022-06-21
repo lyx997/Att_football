@@ -15,6 +15,12 @@ from datetime import datetime, timedelta
 
 from encoders.encoder_gat import state_to_tensor
 
+def find_most_att_idx(player_att2_idx, active_idx):
+    most_att_idx = player_att2_idx.sort(descending=True)[1][0]
+    if most_att_idx >= active_idx:
+        most_att_idx += 1
+    return most_att_idx
+
 def split_att_idx(all_sorted_idx):
     team_att_idx_list = []
     opp_att_idx_list = []
@@ -110,8 +116,9 @@ def integrat_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
 
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, player_sort3_att_idx = model(state_dict_tensor)
-                team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
+                a_prob, m_prob, _, h_out, player_att_idx = model(state_dict_tensor)
+                active_idx = obs[0]["active"]
+                most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
 
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
@@ -119,12 +126,12 @@ def integrat_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
             prev_obs = obs
 
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step(real_action, [team_att_idx,opp_att_idx])
+                obs, rew, done, info = env_left.att_step(real_action, [[], []])
             else:
-                obs, rew, done, info = env_right.att_step(real_action, [team_att_idx,opp_att_idx])
+                obs, rew, done, info = env_right.att_step(real_action, [[], []])
 
             rew = rew[0]
-            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx)
             state_prime_dict = fe.encode(obs[0])
 
             (h1_in, h2_in) = h_in
@@ -185,7 +192,8 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
     rollout_def = []
     
     while True: # episode loop
-        seed = random.random()
+        seed = 0.1
+        #seed = random.random()
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()
@@ -203,6 +211,7 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
         
         loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
         ball_owned_team = obs[0]["ball_owned_team"] #-1
+        ball_x = obs[0]["ball"][0]
 
         while not done:
 
@@ -227,21 +236,23 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out, player_sort3_att_idx = model_att(state_dict_tensor)
-                    team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
+                    a_prob, m_prob, _, h_out, player_att_idx = model_att(state_dict_tensor)
+                    active_idx = obs[0]["active"]
+                    most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
                 forward_t += time.time()-t1 
                 real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
 
                 prev_obs = obs
 
                 if our_team == 0:
-                    obs, rew, done, info = env_left.att_step(real_action, [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_left.att_step(real_action, [])
                 else:
-                    obs, rew, done, info = env_right.att_step(real_action, [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_right.att_step(real_action, [])
 
                 rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
-                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+                ball_x = obs[0]["ball"][0]
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx, True)
                 state_prime_dict = fe.encode(obs[0])
 
                 (h1_in, h2_in) = h_in
@@ -276,6 +287,7 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     summary_data = (win, score, tot_reward, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
                     summary_queue.put(summary_data)
 
+
              
             #defence model
             while not done:  # step loop
@@ -298,21 +310,22 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out, player_sort3_att_idx = model_att(state_dict_tensor)
-                    team_att_idx, opp_att_idx = split_att_idx(player_sort3_att_idx)
+                    a_prob, m_prob, _, h_out, player_def_idx = model_att(state_dict_tensor)
+                    most_att_idx = find_most_att_idx(player_def_idx[2], 20)
                 forward_t += time.time()-t1 
                 real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
 
                 prev_obs = obs
 
                 if our_team == 0:
-                    obs, rew, done, info = env_left.att_step(real_action, [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_left.att_step(real_action, [])
                 else:
-                    obs, rew, done, info = env_right.att_step(real_action, [team_att_idx, opp_att_idx])
+                    obs, rew, done, info = env_right.att_step(real_action, [])
 
                 rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
-                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+                ball_x = obs[0]["ball"][0]
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx, False)
                 state_prime_dict = fe.encode(obs[0])
 
                 (h1_in, h2_in) = h_in
@@ -538,7 +551,9 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, _ = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, player_att_idx = model(state_dict_tensor)
+                active_idx = obs["active"]
+                most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
                 opp_a_prob, opp_m_prob, _, opp_h_out, _ = opp_model(opp_state_dict_tensor)
             forward_t += time.time()-t1 
             
@@ -552,7 +567,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             else:
                 [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [[],[]])
 
-            fin_r = rewarder.calc_reward(rew, prev_obs, obs)
+            fin_r = rewarder.calc_reward(rew, prev_obs, obs, most_att_idx)
             state_prime_dict = fe.encode(obs)
 
             (h1_in, h2_in) = h_in

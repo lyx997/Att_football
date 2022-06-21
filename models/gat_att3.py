@@ -117,11 +117,6 @@ class Model(nn.Module):
         all_team_onehot_1.scatter_(1, index1, all_team_scatter)
         all_team_onehot_2.scatter_(1, index2, all_team_scatter)
         
-        #for i, idx in enumerate(player_sort4_att_idx):
-        #    all_team_onehot_1[i, idx[0], 0] = 1
-        #    all_team_onehot_2[i, idx[1], 0] = 1
-        #    all_team_onehot_3[i, idx[2], 0] = 1
-        #    all_team_onehot_4[i, idx[3], 0] = 1
 
         all_team_att1_embed = torch.bmm(all_team_onehot_1.permute(0,2,1), all_team_state_embed)
         all_team_att2_embed = torch.bmm(all_team_onehot_2.permute(0,2,1), all_team_state_embed)
