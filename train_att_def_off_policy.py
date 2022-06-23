@@ -10,8 +10,8 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from learner import *
-from evaluator_with_hard_att_def import evaluator
+from off_policy_learner import *
+from evaluator_with_hard_att_def import *
 #from evaluator import evaluator
 from datetime import datetime, timedelta
 
@@ -93,12 +93,12 @@ def main(arg_dict):
         if arg_dict["env"] == "11_vs_11_selfplay":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
-            p = mp.Process(target=integrat_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=off_policy_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
-    for i in range(5):
+    for i in range(10):
         if "env_evaluation" in arg_dict:
-            p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=off_policy_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
             processes.append(p)
         
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
         "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
-        "buffer_size": 6,
+        "buffer_size": 6, #false 6  
         "rollout_len": 30,
 
         "lstm_size": 256,
@@ -126,21 +126,25 @@ if __name__ == '__main__':
         "entropy_coef" : 0.0001,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
+        "epsilon_start" : 0.9, #for DQN
+        "epsilon_end" : 0.05, #for DQN
+        "epsilon_decay" : 200, #for DQN
 
         "summary_game_window" : 10, 
         "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "target_update_step" : 13, 
 
         "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play trainng. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def_seperate",
+        "encoder" : "encoder_gat_att_def_dqn",
         "rewarder" : "rewarder_att_def3",
-        "model" : "team_opp_attention7",
-        "algorithm" : "ppo_with_lstm",
+        "model" : "team_opp_attention7_dqn",
+        "algorithm" : "dqn_with_lstm",
 
-        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_stochastic'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

@@ -11,7 +11,6 @@ def state_to_tensor(state_dict, h_in):
     left_team_state = torch.from_numpy(state_dict["left_team_state"]).float().unsqueeze(0).unsqueeze(0)
     right_team_state = torch.from_numpy(state_dict["right_team_state"]).float().unsqueeze(0).unsqueeze(0)
     all_team_state = torch.from_numpy(state_dict["all_team_state"]).float().unsqueeze(0).unsqueeze(0)
-    avail = torch.from_numpy(state_dict["avail"]).float().unsqueeze(0).unsqueeze(0)
 
     state_dict_tensor = {
       'match_situation':match_situation,
@@ -23,7 +22,6 @@ def state_to_tensor(state_dict, h_in):
       "left_team_state" : left_team_state,
       "right_team_state" : right_team_state,
       "all_team_state" : all_team_state,
-      "avail" : avail,
       "hidden" : h_in,
     }
     return state_dict_tensor
@@ -43,7 +41,7 @@ class FeatureEncoder:
             'right_team_closest':7,
 
             'match_situation':13,
-            'player_situation':23,
+            'player_situation':13,
             'ball_situation':13,
 
             'player_state':10,
@@ -91,12 +89,11 @@ class FeatureEncoder:
         else:
             ball_far = 0.0
         
-        avail = self._get_avail(obs, ball_distance)
         score_situation = self._get_score(score) 
         steps_situation = self._get_steps(steps_left)
         match_situation = np.concatenate((steps_situation, score_situation)) #13
 
-        player_situation = np.concatenate((avail[2:], player_role_onehot, [ball_far, is_dribbling, is_sprinting]))#23
+        player_situation = np.concatenate((player_role_onehot, [ball_far, is_dribbling, is_sprinting]))#13
         #player_situation = np.concatenate((avail[2:], obs['left_team'][player_num], player_direction*100, [player_speed*100],
         #                           player_role_onehot, [ball_far, player_tired, is_dribbling, is_sprinting]))
         ball_situation = np.concatenate((ball_which_zone, ball_relative_position, [ball_z, ball_z_speed] , ball_owned_onehot))#13
@@ -141,7 +138,6 @@ class FeatureEncoder:
                       'left_team_state':left_team_state,
                       'right_team_state':right_team_state,
                       'all_team_state':all_team_state,
-                      "avail" : avail,
                       }
 
         return state_dict
@@ -199,10 +195,10 @@ class FeatureEncoder:
         
         # if too far, no shot
         ball_x, ball_y, _ = obs['ball']
-        #if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
-        #    avail[SHOT] = 0
-        #elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
-        #    avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
+        if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
+            avail[SHOT] = 0
+        elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
+            avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
             
             
         if obs['game_mode'] == 2 and ball_x < -0.7:  # Our GoalKick 

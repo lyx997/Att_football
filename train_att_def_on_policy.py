@@ -10,8 +10,8 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from off_policy_learner import *
-from evaluator_with_hard_att_def import evaluator
+from on_policy_learner import *
+from evaluator_with_hard_att_def import *
 #from evaluator import evaluator
 from datetime import datetime, timedelta
 
@@ -39,7 +39,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_reward1"
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_" + arg_dict["rewarder"]
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
     arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
     arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
@@ -93,12 +93,12 @@ def main(arg_dict):
         if arg_dict["env"] == "11_vs_11_selfplay":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
-            p = mp.Process(target=integrat_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=on_policy_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
-    for i in range(5):
+    for i in range(10):
         if "env_evaluation" in arg_dict:
-            p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=on_policy_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
             processes.append(p)
         
@@ -113,9 +113,9 @@ if __name__ == '__main__':
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 60,  # should be less than the number of cpu cores in your workstation.
-        "batch_size": 64,   
-        "buffer_size": 6,
+        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
+        "batch_size": 32,   
+        "buffer_size": 6, #false 6  
         "rollout_len": 30,
 
         "lstm_size": 256,
@@ -123,12 +123,12 @@ if __name__ == '__main__':
         "learning_rate" : 0.0001,
         "gamma" : 0.993,
         "lmbda" : 0.96,
-        "entropy_coef" : 0.0001,
+        "entropy_coef" : 0.00001,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play trainng. 
@@ -136,8 +136,8 @@ if __name__ == '__main__':
         "print_mode" : False,
 
         "encoder" : "encoder_gat_att_def_seperate",
-        "rewarder" : "rewarder_att_def",
-        "model" : "gat_att5",
+        "rewarder" : "rewarder_att_def7",
+        "model" : "team_opp_attention7",
         "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

@@ -45,17 +45,10 @@ class Model(nn.Module):
         
         self.lstm  = nn.LSTM(arg_dict["lstm_size"],arg_dict["lstm_size"])
 
-        self.fc_pi_a1 = nn.Linear(arg_dict["lstm_size"], 164)
-        self.fc_pi_a2 = nn.Linear(164, 12)
-        self.norm_pi_a1 = nn.LayerNorm(164)
+        self.fc_q_a1 = nn.Linear(arg_dict["lstm_size"], 164)
+        self.fc_q_a2 = nn.Linear(164, 19)
+        self.norm_q_a1 = nn.LayerNorm(164)
         
-        self.fc_pi_m1 = nn.Linear(arg_dict["lstm_size"], 164)
-        self.fc_pi_m2 = nn.Linear(164, 8)
-        self.norm_pi_m1 = nn.LayerNorm(164)
-
-        self.fc_V1 = nn.Linear(arg_dict["lstm_size"], 164)
-        self.norm_V1 = nn.LayerNorm(164)
-        self.fc_V2 = nn.Linear(164, 1,  bias=False)
         self.optimizer = optim.Adam(self.parameters(), lr=arg_dict["learning_rate"])
         
     def forward(self, state_dict):
@@ -68,7 +61,6 @@ class Model(nn.Module):
         ball_state = state_dict["ball_state"]              
         left_team_state = state_dict["left_team_state"]
         right_team_state = state_dict["right_team_state"]  
-        avail = state_dict["avail"]
         
         match_sit_embed = F.relu(self.norm_match_situation(self.fc_match_situation(match_situation)))
         player_sit_embed = F.relu(self.norm_player_situation(self.fc_player_situation(player_situation)))
@@ -216,137 +208,13 @@ class Model(nn.Module):
                         ball_left_att1_embed, left_team_att2_right_embed, right_team_att2_ball_embed], dim=2)
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
-        #out, h_out = self.lstm(cat, h_in)
         out, h_out = self.lstm(cat, h_in)
         
-        a_out = F.relu(self.norm_pi_a1(self.fc_pi_a1(out)))
-        a_out = self.fc_pi_a2(a_out)
-        logit = a_out + (avail-1)*1e7
-        prob = F.softmax(logit, dim=2)
-        
-        prob_m = F.relu(self.norm_pi_m1(self.fc_pi_m1(out)))
-        prob_m = self.fc_pi_m2(prob_m)
-        prob_m = F.softmax(prob_m, dim=2)
+        qa_out = F.relu(self.norm_q_a1(self.fc_q_a1(out)))
+        q_a = self.fc_q_a2(qa_out)
 
-        v = F.relu(self.norm_V1(self.fc_V1(out)))
-        v = self.fc_V2(v)
+        return q_a, h_out, [player_right_att1.squeeze().squeeze(), left_right_att2.squeeze().squeeze(), player_left_att2.squeeze().squeeze()]
 
-        return prob, prob_m, v, h_out, [player_right_att1.squeeze().squeeze(), left_right_att2.squeeze().squeeze(), player_left_att2.squeeze().squeeze()]
-
-    def make_batch(self, data):
-        # data = [tr1, tr2, ..., tr10] * batch_size
-        s_match_sit_batch, s_player_sit_batch, s_ball_sit_batch, s_player_batch, s_ball_batch, s_left_batch, s_right_batch, avail_batch = [],[],[],[],[],[],[],[]
-        s_match_sit_prime_batch, s_player_sit_prime_batch, s_ball_sit_prime_batch, s_player_prime_batch, s_ball_prime_batch, s_left_prime_batch,  \
-                                                  s_right_prime_batch, avail_prime_batch =  [],[],[],[],[],[],[],[]
-        h1_in_batch, h2_in_batch, h1_out_batch, h2_out_batch = [], [], [], []
-        a_batch, m_batch, r_batch, prob_batch, done_batch, need_move_batch = [], [], [], [], [], []
-        
-        for rollout in data:
-            s_match_sit_lst, s_player_sit_lst, s_ball_sit_lst, s_player_lst, s_ball_lst, s_left_lst, s_right_lst, avail_lst =  [], [], [], [], [], [], [], []
-            s_match_sit_prime_lst, s_player_sit_prime_lst, s_ball_sit_prime_lst, s_player_prime_lst, s_ball_prime_lst, s_left_prime_lst, \
-                                                  s_right_prime_lst, avail_prime_lst =  [], [], [], [], [], [], [], []
-            h1_in_lst, h2_in_lst, h1_out_lst, h2_out_lst = [], [], [], []
-            a_lst, m_lst, r_lst, prob_lst, done_lst, need_move_lst = [], [], [], [], [], []
-            
-            for transition in rollout:
-                s, a, m, r, s_prime, prob, done, need_move = transition
-
-                s_player_sit_lst.append(s["player_situation"])
-                s_ball_sit_lst.append(s["ball_situation"])
-                s_match_sit_lst.append(s["match_situation"])
-
-                s_player_lst.append(s["player_state"])
-                s_ball_lst.append(s["ball_state"])
-                s_left_lst.append(s["left_team_state"])
-                s_right_lst.append(s["right_team_state"])
-                avail_lst.append(s["avail"])
-                h1_in, h2_in = s["hidden"]
-                h1_in_lst.append(h1_in)
-                h2_in_lst.append(h2_in)
-
-                s_player_sit_prime_lst.append(s_prime["player_situation"])
-                s_ball_sit_prime_lst.append(s_prime["ball_situation"])
-                s_match_sit_prime_lst.append(s_prime["match_situation"])
-                s_player_prime_lst.append(s_prime["player_state"])
-                s_ball_prime_lst.append(s_prime["ball_state"])
-                s_left_prime_lst.append(s_prime["left_team_state"])
-                s_right_prime_lst.append(s_prime["right_team_state"])
-                avail_prime_lst.append(s_prime["avail"])
-                h1_out, h2_out = s_prime["hidden"]
-                h1_out_lst.append(h1_out)
-                h2_out_lst.append(h2_out)
-
-                a_lst.append([a])
-                m_lst.append([m])
-                r_lst.append([r])
-                prob_lst.append([prob])
-                done_mask = 0 if done else 1
-                done_lst.append([done_mask])
-                need_move_lst.append([need_move]),
-                
-            s_player_sit_batch.append(s_player_sit_lst)
-            s_ball_sit_batch.append(s_ball_sit_lst)
-            s_match_sit_batch.append(s_match_sit_lst)
-            s_player_batch.append(s_player_lst)
-            s_ball_batch.append(s_ball_lst)
-            s_left_batch.append(s_left_lst)
-            s_right_batch.append(s_right_lst)
-            avail_batch.append(avail_lst)
-            h1_in_batch.append(h1_in_lst[0])
-            h2_in_batch.append(h2_in_lst[0])
-
-            s_player_sit_prime_batch.append(s_player_sit_prime_lst)
-            s_ball_sit_prime_batch.append(s_ball_sit_prime_lst)
-            s_match_sit_prime_batch.append(s_match_sit_prime_lst) 
-            s_player_prime_batch.append(s_player_prime_lst)
-            s_ball_prime_batch.append(s_ball_prime_lst)
-            s_left_prime_batch.append(s_left_prime_lst)
-            s_right_prime_batch.append(s_right_prime_lst)
-            avail_prime_batch.append(avail_prime_lst)
-            h1_out_batch.append(h1_out_lst[0])
-            h2_out_batch.append(h2_out_lst[0])
-
-            a_batch.append(a_lst)
-            m_batch.append(m_lst)
-            r_batch.append(r_lst)
-            prob_batch.append(prob_lst)
-            done_batch.append(done_lst)
-            need_move_batch.append(need_move_lst)
-        
-
-        s = {
-          "player_situation": torch.tensor(s_player_sit_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "ball_situation": torch.tensor(s_ball_sit_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "match_situation": torch.tensor(s_match_sit_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "player_state": torch.tensor(s_player_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "ball_state": torch.tensor(s_ball_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "left_team_state": torch.tensor(s_left_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
-          "right_team_state": torch.tensor(s_right_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
-          "avail": torch.tensor(avail_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "hidden" : (torch.tensor(h1_in_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2), 
-                      torch.tensor(h2_in_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2))
-        }
-
-        s_prime = {
-          "player_situation": torch.tensor(s_player_sit_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "ball_situation": torch.tensor(s_ball_sit_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "match_situation": torch.tensor(s_match_sit_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "player_state": torch.tensor(s_player_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "ball_state": torch.tensor(s_ball_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "left_team_state": torch.tensor(s_left_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
-          "right_team_state": torch.tensor(s_right_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
-          "avail": torch.tensor(avail_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
-          "hidden" : (torch.tensor(h1_out_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2), 
-                      torch.tensor(h2_out_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2))
-        }
-
-        a,m,r,done_mask,prob,need_move = torch.tensor(a_batch, device=self.device).permute(1,0,2), \
-                                         torch.tensor(m_batch, device=self.device).permute(1,0,2), \
-                                         torch.tensor(r_batch, dtype=torch.float, device=self.device).permute(1,0,2), \
-                                         torch.tensor(done_batch, dtype=torch.float, device=self.device).permute(1,0,2), \
-                                         torch.tensor(prob_batch, dtype=torch.float, device=self.device).permute(1,0,2), \
-                                         torch.tensor(need_move_batch, dtype=torch.float, device=self.device).permute(1,0,2)
-
-        return s, a, m, r, s_prime, done_mask, prob, need_move
+   
     
 
