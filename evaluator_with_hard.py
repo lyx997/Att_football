@@ -52,7 +52,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     env_left = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
                                           number_of_left_players_agent_controls=1,
                                           number_of_right_players_agent_controls=0,
-                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False, write_video=False)
+                                          write_goal_dumps=True, write_full_episode_dumps=False, render=False, write_video=True)
     env_right = football_env.create_environment(env_name=arg_dict["env_evaluation"], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
                                           number_of_left_players_agent_controls=0,
                                           number_of_right_players_agent_controls=1,
@@ -101,7 +101,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, _ = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, _, _ = model(state_dict_tensor)
                 #opp_a_prob, opp_m_prob, _, opp_h_out = opp_model(opp_state_dict_tensor)
             forward_t += time.time()-t1 
 
@@ -115,7 +115,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 obs, rew, done, info = env_right.att_step([real_action],[[],[],[]])
 
             rew = rew[0]
-            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0])
+            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], None, a)
             state_prime_dict = fe1.encode(obs[0])
             
             (h1_in, h2_in) = h_in

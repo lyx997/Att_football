@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 from actor import *
 from on_policy_learner import *
-from evaluator_with_hard_att_def import *
+from evaluator import *
 #from evaluator import evaluator
 from datetime import datetime, timedelta
 
@@ -26,6 +26,13 @@ def save_args(arg_dict):
     f.write(args_info)
     f.close()
 
+def setup_seed(seed):
+     torch.manual_seed(seed)
+     torch.cuda.manual_seed_all(seed)
+     np.random.seed(seed)
+     random.seed(seed)
+     #torch.backends.cudnn.deterministic = True
+
 def copy_models(dir_src, dir_dst): # src: source, dst: destination
     # retireve list of models
     l_cands = [f for f in os.listdir(dir_src) if os.path.isfile(os.path.join(dir_src, f)) and 'model_' in f]
@@ -39,7 +46,12 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_" + arg_dict["rewarder"]
+    if arg_dict["env"] == "11_vs_11_stochastic":
+        arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_" + arg_dict["rewarder"] 
+    elif arg_dict["env"] == "11_vs_11_kaggle":
+        arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_" + arg_dict["rewarder"] + "_self_play"
+    else:
+        arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_" + arg_dict["model"] + "_" + arg_dict["rewarder"] + "_with_hard"
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
     arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
     arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
@@ -84,21 +96,24 @@ def main(arg_dict):
     data_queue = mp.Queue()
     signal_queue = mp.Queue()
     summary_queue = mp.Queue()
+
+    # 设置随机数种子
+    #setup_seed(20)
     
     processes = [] 
     p = mp.Process(target=learner, args=(center_model, data_queue, signal_queue, summary_queue, arg_dict))
     p.start()
     processes.append(p)
     for rank in range(arg_dict["num_processes"]):
-        if arg_dict["env"] == "11_vs_11_selfplay":
+        if arg_dict["env"] == "11_vs_11_kaggle":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
             p = mp.Process(target=on_policy_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
-    for i in range(10):
+    for i in range(1):
         if "env_evaluation" in arg_dict:
-            p = mp.Process(target=on_policy_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
             processes.append(p)
         
@@ -109,38 +124,43 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_stochastic",    
+        #"env": "11_vs_11_kaggle",    
+        "env": "11_vs_11_kaggle",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
+        "num_processes": 40,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6, #false 6  
         "rollout_len": 30,
 
         "lstm_size": 256,
-        "k_epoch" : 3,
-        "learning_rate" : 0.0001,
+        "k_epoch" : 5,
+        "learning_rate" : 0.0001,#0.0001
         "gamma" : 0.993,
         "lmbda" : 0.96,
-        "entropy_coef" : 0.00001,
+        "entropy_coef" : 0.0001,
+        "attention_coef" : 0.1,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play trainng. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def_seperate",
-        "rewarder" : "rewarder_att_def7",
-        "model" : "team_opp_attention7",
-        "algorithm" : "ppo_with_lstm",
+        "encoder" : "encoder_gat_att_def_latest10",
+        "rewarder" : "rewarder_highpass25",
+        "model" : "team_opp_attention18",
+        #"model" : "gat_att_def6_latest12",
+        "algorithm" : "ppo_with_lstm_att_loss",
+        "tmux": "football2",
+        "get_score":False,
 
-        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'tensorboard/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from learner import *
+from on_policy_learner import *
 from evaluator_with_hard import evaluator
 from datetime import datetime, timedelta
 
@@ -24,6 +24,13 @@ def save_args(arg_dict):
     f = open(arg_dict["log_dir"]+"/args.json","w")
     f.write(args_info)
     f.close()
+
+def setup_seed(seed):
+     torch.manual_seed(seed)
+     torch.cuda.manual_seed_all(seed)
+     np.random.seed(seed)
+     random.seed(seed)
+     #torch.backends.cudnn.deterministic = True
 
 def copy_models(dir_src, dir_dst): # src: source, dst: destination
     # retireve list of models
@@ -82,19 +89,21 @@ def main(arg_dict):
     data_queue = mp.Queue()
     signal_queue = mp.Queue()
     summary_queue = mp.Queue()
+
+    #setup_seed(20)
     
     processes = [] 
     p = mp.Process(target=learner, args=(center_model, data_queue, signal_queue, summary_queue, arg_dict))
     p.start()
     processes.append(p)
     for rank in range(arg_dict["num_processes"]):
-        if arg_dict["env"] == "11_vs_11_selfplay":
+        if arg_dict["env"] == "11_vs_11_kaggle":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
             p = mp.Process(target=actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
-    for i in range(0):
+    for i in range(1):
         if "env_evaluation" in arg_dict:
             p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
@@ -107,7 +116,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_competition",    
+        "env": "11_vs_11_kaggle",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
@@ -126,7 +135,7 @@ if __name__ == '__main__':
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : None, # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
@@ -134,9 +143,10 @@ if __name__ == '__main__':
         "print_mode" : False,
 
         "encoder" : "encoder_basic",
-        "rewarder" : "rewarder_att_def",
+        "rewarder" : "rewarder_highpass15",
         "model" : "conv1d",
         "algorithm" : "ppo_with_lstm",
+        "tmux": "football2",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }

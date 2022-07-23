@@ -11,13 +11,14 @@ from models.conv1d import Model as PPO
 #from models.conv2d import Model as PPO_Conv2
 from models.gat_att3 import Model as Gat3
 from models.gat_att2 import Model as Gat2
-from models.gat_att_def6_latest import Model as Gat6
+from models.gat_att_def6_latest11 import Model as Gat6
 from models.gat_att_def10 import Model as Gat10
-from models.team_opp_attention4 import Model as Team4
+from models.team_opp_attention10 import Model as Team10
+from models.team_opp_attention17 import Model as Team12
 from models.opp_attention import Model as Opp
 from encoders.encoder_basic import FeatureEncoder as FE, state_to_tensor as stt
 #from encoders.encoder_conv2 import FeatureEncoder as FE2, state_to_tensor as stt2
-from encoders.encoder_gat_att_def_seperate import FeatureEncoder as FE3, state_to_tensor as stt3
+from encoders.encoder_gat_att_def_latest9 import FeatureEncoder as FE3, state_to_tensor as stt3
 
 if os.path.exists('log.txt'):
     os.remove('log.txt')
@@ -41,7 +42,7 @@ arg_dict = {
     #"left_model_path" : "tensorboard\with-pae\model_1500480_att3.tar",
     #"left_model_path" : "tensorboard\with-pae\model_10503360_att2.tar",
     #"left_model_path" : "tensorboard\with-pae\model_49215744_att_def6.tar",
-    "left_model_path" : "logs/[06-15]14.00.46_team_attention_opp_attention_seperate_rewarder_att_def4/def/model_def_12904128.tar",
+    "left_model_path" : "logs/[07-20]13.15.43_team_opp_attention17_rewarder_highpass23/model_600960.tar",
     #"left_model_path" : "logs/[06-02]23.10.26_gat_att_def6_latest_reward1/model_41793408.tar",
     #"left_model_path" : "tensorboard\with-pae\model_14704704_selfplay_att_def6_latest.tar",
     #"left_model_path" : "tensorboard\with-pae\model_69022080_att_def6.tar",
@@ -54,7 +55,7 @@ arg_dict = {
 
 left_fe = FE3()
 arg_dict["feature_dims"] = left_fe.get_feature_dims()
-left_model = Opp(arg_dict)
+left_model = Team12(arg_dict)
 #left_model = Gat9(arg_dict)
 #left_model = Gat3(arg_dict)
 cpu_device = torch.device('cpu')
@@ -86,7 +87,7 @@ def agent(obs, args):
     state_dict = left_fe.encode(obs)
     state_dict_tensor = stt3(state_dict, left_hidden)
     with torch.no_grad():
-        a_prob, m_prob, _, left_hidden, defence_att = left_model(state_dict_tensor)
+        a_prob, m_prob, _, left_hidden, attack_att, defence_att = left_model(state_dict_tensor)
         
     if arg_dict["arg_max"]:
         a = torch.argmax(a_prob).item()
@@ -105,7 +106,7 @@ def agent(obs, args):
     else:
         real_action = int(a + 7)
 
-    return [real_action], defence_att
+    return [real_action], a, attack_att, defence_att
 
 def agent_opp(obs, args):
     global left_model
@@ -213,22 +214,27 @@ def split_def_idx(defence_att, active_idx):
     return team_att_idx, opp_att_idx
 
 def split_att_def_idx(attack_att, defence_att, active_idx):
-    attack_right_idx1 = attack_att[0].sort(descending=True)[1][0]
-    attack_right_idx2 = attack_att[1].sort(descending=True)[1][0]
-    attack_left_idx = attack_att[2].sort(descending=True)[1][0]
-    defence_left_idx1 = defence_att[0].sort(descending=True)[1][0]
-    defence_left_idx2 = defence_att[1].sort(descending=True)[1][0]
-    defence_right_idx = defence_att[2].sort(descending=True)[1][0]
+    attack_right_idx1 = attack_att[0].squeeze().sort(descending=True)[1][0]
+    #attack_right_idx2 = attack_att[1].sort(descending=True)[1][0]
+    attack_left_idx = attack_att[2].squeeze().sort(descending=True)[1][0]
+    defence_left_idx1 = defence_att[0].squeeze().sort(descending=True)[1][0]
+    #defence_left_idx2 = defence_att[1].sort(descending=True)[1][0]
+    defence_right_idx = defence_att[2].squeeze().sort(descending=True)[1][0]
     
     if attack_left_idx >= active_idx[0]:
         attack_left_idx += 1
     if defence_left_idx1 >= active_idx[0]:
         defence_left_idx1 += 1
-    if defence_left_idx2 >= active_idx[0]:
-        defence_left_idx2 += 1
+    #if defence_left_idx2 >= active_idx[0]:
+    #    defence_left_idx2 += 1
 
-    team_att_idx = [int(attack_left_idx), int(defence_left_idx1), int(defence_left_idx2)]
-    opp_att_idx = [int(attack_right_idx1), int(attack_right_idx2), int(defence_right_idx)]
+    #team_att_idx = [int(attack_left_idx), int(defence_left_idx1), int(defence_left_idx2)]
+    team_att_idx = [int(attack_left_idx), int(defence_left_idx1)]
+    #opp_att_idx = [int(attack_right_idx1), int(attack_right_idx2), int(defence_right_idx)]
+    opp_att_idx = [int(attack_right_idx1), int(defence_right_idx)]
+
+    att_entropy = - torch.mean(torch.log(attack_att[2]))
+    print("entropy", att_entropy)
 
     return team_att_idx, opp_att_idx
     
@@ -244,13 +250,13 @@ while True:
         if args.opp:
             action = agent_opp(obs, args)
         else:
-            action, defence_att = agent(obs, args)
+            action, a, attack_att, defence_att = agent(obs, args)
             active_idx = [obs[0]["active"]]
-            team_att_idx, opp_att_idx = split_def_idx(defence_att, active_idx)
+            #team_att_idx, opp_att_idx = split_att_def_idx(attack_att, defence_att, active_idx)
             #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
 
         #obs = env.att_step(action, [team_att_idx, opp_att_idx, active_idx])
-        obs = env.att_step(action, [team_att_idx, opp_att_idx, active_idx])
+        obs = env.att_step(action, [])
         left_score = obs[1]
 
         left_score += init_left_score

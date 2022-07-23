@@ -231,18 +231,19 @@ class Model(nn.Module):
         v = F.relu(self.norm_V1(self.fc_V1(out)))
         v = self.fc_V2(v)
 
-        return prob, prob_m, v, h_out, [player_right_att1.squeeze().squeeze(), left_right_att2.squeeze().squeeze(), player_left_att2.squeeze().squeeze()]
+        return prob, prob_m, v, h_out, [player_right_att1.squeeze().squeeze(), left_right_att2.squeeze().squeeze(), player_left_att2.squeeze().squeeze()], \
+                [ball_left_att1.squeeze().squeeze(), right_left_att2.squeeze().squeeze(), ball_right_att2.squeeze().squeeze()]
 
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
-        s_match_sit_batch, s_player_sit_batch, s_ball_sit_batch, s_player_batch, s_ball_batch, s_left_batch, s_right_batch, avail_batch = [],[],[],[],[],[],[],[]
+        s_match_sit_batch, s_player_sit_batch, s_ball_sit_batch, s_player_batch, s_ball_batch, s_left_batch, s_right_batch, avail_batch, right_player_dis_batch, right_left_dis_batch, left_ball_dis_batch, left_right_dis_batch = [],[],[],[],[],[],[],[],[],[],[],[]
         s_match_sit_prime_batch, s_player_sit_prime_batch, s_ball_sit_prime_batch, s_player_prime_batch, s_ball_prime_batch, s_left_prime_batch,  \
                                                   s_right_prime_batch, avail_prime_batch =  [],[],[],[],[],[],[],[]
         h1_in_batch, h2_in_batch, h1_out_batch, h2_out_batch = [], [], [], []
         a_batch, m_batch, r_batch, prob_batch, done_batch, need_move_batch = [], [], [], [], [], []
         
         for rollout in data:
-            s_match_sit_lst, s_player_sit_lst, s_ball_sit_lst, s_player_lst, s_ball_lst, s_left_lst, s_right_lst, avail_lst =  [], [], [], [], [], [], [], []
+            s_match_sit_lst, s_player_sit_lst, s_ball_sit_lst, s_player_lst, s_ball_lst, s_left_lst, s_right_lst, avail_lst, right_player_dis_lst, right_left_dis_lst, left_ball_dis_lst, left_right_dis_lst =  [], [], [], [], [], [], [], [],[],[],[],[]
             s_match_sit_prime_lst, s_player_sit_prime_lst, s_ball_sit_prime_lst, s_player_prime_lst, s_ball_prime_lst, s_left_prime_lst, \
                                                   s_right_prime_lst, avail_prime_lst =  [], [], [], [], [], [], [], []
             h1_in_lst, h2_in_lst, h1_out_lst, h2_out_lst = [], [], [], []
@@ -260,6 +261,10 @@ class Model(nn.Module):
                 s_left_lst.append(s["left_team_state"])
                 s_right_lst.append(s["right_team_state"])
                 avail_lst.append(s["avail"])
+                right_player_dis_lst.append(s["right_team_distance_to_player"])
+                right_left_dis_lst.append(s["right_team_distance_to_left"])
+                left_ball_dis_lst.append(s["left_team_distance_to_ball"])
+                left_right_dis_lst.append(s["left_team_distance_to_right"])
                 h1_in, h2_in = s["hidden"]
                 h1_in_lst.append(h1_in)
                 h2_in_lst.append(h2_in)
@@ -292,6 +297,10 @@ class Model(nn.Module):
             s_left_batch.append(s_left_lst)
             s_right_batch.append(s_right_lst)
             avail_batch.append(avail_lst)
+            right_left_dis_batch.append(right_left_dis_lst)
+            right_player_dis_batch.append(right_player_dis_lst)
+            left_ball_dis_batch.append(left_ball_dis_lst)
+            left_right_dis_batch.append(left_right_dis_lst)
             h1_in_batch.append(h1_in_lst[0])
             h2_in_batch.append(h2_in_lst[0])
 
@@ -323,9 +332,16 @@ class Model(nn.Module):
           "left_team_state": torch.tensor(s_left_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
           "right_team_state": torch.tensor(s_right_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
           "avail": torch.tensor(avail_batch, dtype=torch.float, device=self.device).permute(1,0,2),
+          "right_player_dis": torch.tensor(right_player_dis_batch, dtype=torch.float, device=self.device).squeeze(-1).permute(1,0,2),
+          "left_ball_dis": torch.tensor(left_ball_dis_batch, dtype=torch.float, device=self.device).squeeze(-1).permute(1,0,2),
+          "right_left_dis": torch.tensor(right_left_dis_batch, dtype=torch.float, device=self.device).squeeze(-1).permute(1,0,2,3),
+          "left_right_dis": torch.tensor(left_right_dis_batch, dtype=torch.float, device=self.device).squeeze(-1).permute(1,0,2,3),
           "hidden" : (torch.tensor(h1_in_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2), 
-                      torch.tensor(h2_in_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2))
+                      torch.tensor(h2_in_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2)),
+          "left_repeat": torch.tensor(np.ones(10)*11, dtype=torch.long, device=self.device),
+          "right_repeat": torch.tensor(np.ones(11)*10, dtype=torch.long, device=self.device),
         }
+        
 
         s_prime = {
           "player_situation": torch.tensor(s_player_sit_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
@@ -337,7 +353,9 @@ class Model(nn.Module):
           "right_team_state": torch.tensor(s_right_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2,3),
           "avail": torch.tensor(avail_prime_batch, dtype=torch.float, device=self.device).permute(1,0,2),
           "hidden" : (torch.tensor(h1_out_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2), 
-                      torch.tensor(h2_out_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2))
+                      torch.tensor(h2_out_batch, dtype=torch.float, device=self.device).squeeze(1).permute(1,0,2)),
+          "left_repeat": torch.tensor(np.ones(10)*11, dtype=torch.long, device=self.device),
+          "right_repeat": torch.tensor(np.ones(11)*10, dtype=torch.long, device=self.device),
         }
 
         a,m,r,done_mask,prob,need_move = torch.tensor(a_batch, device=self.device).permute(1,0,2), \
@@ -348,5 +366,3 @@ class Model(nn.Module):
                                          torch.tensor(need_move_batch, dtype=torch.float, device=self.device).permute(1,0,2)
 
         return s, a, m, r, s_prime, done_mask, prob, need_move
-    
-

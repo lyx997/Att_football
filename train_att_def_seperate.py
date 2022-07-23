@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from learner import *
+from on_policy_learner import *
 from evaluator_with_hard_att_def import seperate_evaluator
 #from evaluator import evaluator
 from datetime import datetime, timedelta
@@ -41,7 +41,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_team_attention_opp_attention_seperate_" + arg_dict["rewarder"]
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + "_gat_conv_seperate_" + arg_dict["rewarder"]
     arg_dict["log_dir_att"] = arg_dict["log_dir"] + '/att'
     arg_dict["log_dir_def"] = arg_dict["log_dir"] + '/def'
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
@@ -57,9 +57,12 @@ def main(arg_dict):
     pp = pprint.PrettyPrinter(indent=4)
     torch.set_num_threads(1)
 
-    fe_att_def = importlib.import_module("encoders." + arg_dict["encoder"])
-    fe_att_def = fe_att_def.FeatureEncoder()
-    arg_dict["feature_dims"] = fe_att_def.get_feature_dims()
+    fe_att = importlib.import_module("encoders." + arg_dict["encoder_att"])
+    fe_att = fe_att.FeatureEncoder()
+    arg_dict["att_feature_dims"] = fe_att.get_feature_dims()
+    fe_def = importlib.import_module("encoders." + arg_dict["encoder_def"])
+    fe_def = fe_def.FeatureEncoder()
+    arg_dict["def_feature_dims"] = fe_def.get_feature_dims()
 
     model_att = importlib.import_module("models." + arg_dict["model_att"])
     model_def = importlib.import_module("models." + arg_dict["model_def"])
@@ -116,7 +119,7 @@ def main(arg_dict):
             p = mp.Process(target=seperate_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
-    for i in range(5):
+    for i in range(1):
         if "env_evaluation" in arg_dict:
             p = mp.Process(target=seperate_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
@@ -129,11 +132,11 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_stochastic",    
+        "env": "11_vs_11_competition",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
+        "num_processes": 40,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6,
         "rollout_len": 30,
@@ -144,22 +147,25 @@ if __name__ == '__main__':
         "gamma" : 0.99,
         "lmbda" : 0.96,
         "entropy_coef" : 0.0001,
+        "attention_coef" : 0.01,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
 
-        "summary_game_window" : 10, 
-        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "summary_game_window" : 20, 
+        "summary_eval_window" : 3, 
+        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def",
-        "rewarder" : "rewarder_att_def5",
-        "model_att" : "team_attention2",
-        "model_def" : "opp_attention2",
-        "algorithm" : "ppo_with_lstm",
+        "encoder_att" : "encoder_gat_att_def_latest4",
+        "encoder_def" : "encoder_basic",
+        "rewarder" : "rewarder_att_def15",
+        "model_att" : "gat_att_def6_latest5_att",
+        "model_def" : "conv1d_def",
+        "algorithm" : "ppo_with_lstm_att_loss",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }

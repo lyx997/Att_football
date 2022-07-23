@@ -24,11 +24,16 @@ def split_att_def_idx(attack_att, active_idx):
 
     return att_idx
 
-def find_most_att_idx(player_att2_idx, active_idx):
-    most_att_idx = player_att2_idx.sort(descending=True)[1][0]
-    if most_att_idx >= active_idx:
-        most_att_idx += 1
-    return most_att_idx
+def find_most_att_idx(player_att2_idx, ball_att2_idx, active_idx):
+    player_att2_idx = player_att2_idx.squeeze().squeeze()
+    ball_att2_idx = ball_att2_idx.squeeze().squeeze()
+    player_most_att_idx = player_att2_idx.sort(descending=True)[1][0]
+    ball_most_att_idx = ball_att2_idx.sort(descending=True)[1][0]
+    if active_idx <= player_most_att_idx:
+        player_most_att_idx += 1
+    player_att_idx = [player_most_att_idx]
+    ball_att_idx = [ball_most_att_idx]
+    return player_att_idx, ball_att_idx
 
 def split_att_idx(all_sorted_idx):
     team_att_idx_list = []
@@ -46,7 +51,8 @@ def greedy_get_action(q_a):
     return a
 
 def get_action(a_prob, m_prob):
-    a = Categorical(a_prob).sample().item()
+    #a = Categorical(a_prob).sample().item()
+    a = torch.argmax(a_prob).item()
     m, need_m = 0, 0
     prob_selected_a = a_prob[0][0][a].item()
     prob_selected_m = 0
@@ -69,15 +75,15 @@ def get_action(a_prob, m_prob):
 
 def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
     print("Evaluator process started")
-    fe_module1 = importlib.import_module("encoders." + arg_dict["encoder"])
-    #fe_module2 = importlib.import_module("encoders." + "encoder_basic")
+    fe_module1 = importlib.import_module("encoders." + arg_dict["encoder_att"])
+    fe_module2 = importlib.import_module("encoders." + arg_dict["encoder_def"])
     rewarder = importlib.import_module("rewarders." + arg_dict["rewarder"])
     #opp_import_model = importlib.import_module("models." + "conv1d_self")
     
     fe1 = fe_module1.FeatureEncoder()
     state_to_tensor1 = fe_module1.state_to_tensor
-    #fe2 = fe_module2.FeatureEncoder()
-    #state_to_tensor2 = fe_module2.state_to_tensor
+    fe2 = fe_module2.FeatureEncoder()
+    state_to_tensor2 = fe_module2.state_to_tensor
     model_att = center_model[0]
     model_def = center_model[1]
     #opp_model = opp_import_model.Model(arg_dict)
@@ -126,7 +132,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             while not done:  # step loop
                 init_t = time.time()
 
-                if ball_owned_team == 1 and ball_x < 0: #ball owned by opp change to model_def
+                if ball_owned_team == 1 and ball_x < 0.: #ball owned by opp change to model_def
                     break
 
                 is_stopped = False
@@ -143,7 +149,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out, player_att_idx = model_att(state_dict_tensor)
+                    a_prob, m_prob, _, h_out, player_att_idx, _ = model_att(state_dict_tensor)
                     active_idx = obs[0]["active"]
                     most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
                 forward_t += time.time()-t1 
@@ -152,14 +158,14 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
     
                 prev_obs = obs
                 if our_team == 0:
-                    obs, rew, done, info = env_left.att_step([real_action], [])
+                    obs, rew, done, info = env_left.att_step([real_action], most_att_idx)
                 else:
-                    obs, rew, done, info = env_right.att_step([real_action], [])
+                    obs, rew, done, info = env_right.att_step([real_action], most_att_idx)
 
                 rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
                 ball_x = obs[0]["ball"][0]
-                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx, True)
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx)
                 state_prime_dict = fe1.encode(obs[0])
                 
 
@@ -190,7 +196,7 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             while not done:  # step loop
                 init_t = time.time()
 
-                if ball_owned_team == 0 or ball_x >= 0: #ball owned by us so change to model_att
+                if ball_owned_team == 0 or ball_x >= 0.: #ball owned by us so change to model_att
                     break
 
                 is_stopped = False
@@ -202,13 +208,12 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 wait_t += time.time() - init_t
                 
                 h_in = h_out
-                state_dict = fe1.encode(obs[0])
-                state_dict_tensor = state_to_tensor1(state_dict, h_in)
+                state_dict = fe2.encode(obs[0])
+                state_dict_tensor = state_to_tensor2(state_dict, h_in)
                 
                 t1 = time.time()
                 with torch.no_grad():
-                    a_prob, m_prob, _, h_out, player_def_idx = model_def(state_dict_tensor)
-                    most_att_idx = find_most_att_idx(player_def_idx[2], 20)
+                    a_prob, m_prob, _, h_out, [] = model_def(state_dict_tensor)
                 forward_t += time.time()-t1 
     
                 real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -222,8 +227,8 @@ def seperate_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 rew = rew[0]
                 ball_owned_team = obs[0]["ball_owned_team"]
                 ball_x = obs[0]["ball"][0]
-                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], most_att_idx, False)
-                state_prime_dict = fe1.encode(obs[0])
+                fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], False)
+                state_prime_dict = fe2.encode(obs[0])
                 
                 (h1_in, h2_in) = h_in
                 (h1_out, h2_out) = h_out
@@ -288,6 +293,8 @@ def on_policy_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             obs = env_right.observation()
             our_team = 1
 
+        prev_obs = [[]]
+        highpass=False
         done = False
         steps, score, tot_reward, win = 0, 0, 0, 0
         n_epi += 1
@@ -313,23 +320,32 @@ def on_policy_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, player_att_idx = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, player_att_idx, defence_att_idx = model(state_dict_tensor)
                 active_idx = obs[0]["active"]
-                #most_att_idx = find_most_att_idx(player_att_idx, active_idx)
-                att_idx = split_att_def_idx(player_att_idx, active_idx)
+                player_most_att_idx, ball_most_att_idx = find_most_att_idx(player_att_idx[0], defence_att_idx[0], active_idx)
+                #att_idx = split_att_def_idx(player_att_idx, active_idx)
 
             forward_t += time.time()-t1 
     
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
     
-            prev_obs = obs
+            if obs[0]["ball_owned_team"] != -1:
+                prev_obs = obs
+                highpass=False
+
+            if a == 3:
+                highpass=True
+
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step([real_action], [[], []])
+                obs, rew, done, info = env_left.att_step([real_action], [player_most_att_idx, ball_most_att_idx])
             else:
-                obs, rew, done, info = env_right.att_step([real_action], [[], []])
+                obs, rew, done, info = env_right.att_step([real_action], [player_most_att_idx, ball_most_att_idx])
 
             rew = rew[0]
-            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], att_idx[2][0])
+            if rew != 0:
+                get_score = True
+                prev_obs = [[]]
+            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], [], [])
             state_prime_dict = fe1.encode(obs[0])
             
             (h1_in, h2_in) = h_in
@@ -349,7 +365,7 @@ def on_policy_evaluator(center_model, signal_queue, summary_queue, arg_dict):
 
                 if our_team == 0:
                     print("model in left evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
-                    print("left_idx:",att_idx[0], "player_right_idx:", att_idx[1], "left_right_idx:", att_idx[2])
+                    #print("left_idx:",att_idx[0], "player_right_idx:", att_idx[1], "left_right_idx:", att_idx[2])
                 else:
                     print("model in right evaluate with ", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
                 summary_data = (win, score, tot_reward, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)

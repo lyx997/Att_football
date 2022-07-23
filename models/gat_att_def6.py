@@ -133,7 +133,7 @@ class Model(nn.Module):
         right_player_ws1 = self.fc_att1_attack_ws(right_team_state_embed)#(1,11,64)
         player_ws1 = torch.cat([player_right_ws1_repeat, right_player_ws1], dim=-1)
         player_att1 = F.leaky_relu(self.fc_att1_attack_as(player_ws1))
-        #player_att1_ = F.gumbel_softmax(player_att1, dim=1, hard=True) #(1,11,1)
+        player_att1_ = F.gumbel_softmax(player_att1, dim=1, hard=True) #(1,11,1)
         player_att1 = F.softmax(player_att1, dim=1) #(1,11,1)
         right_att1_player_embed = F.elu(torch.bmm(player_att1.permute(0,2,1), right_player_ws1))
         player_right_embed = torch.add(player_right_ws1, right_att1_player_embed)
@@ -203,7 +203,7 @@ class Model(nn.Module):
         right_ball_ws2 = self.fc_att2_defence_ws(right_left_embed)
         ball_ws2 = torch.cat([ball_right_ws2_repeat, right_ball_ws2], dim=-1)
         ball_att2 = F.leaky_relu(self.fc_att2_defence_as(ball_ws2))
-        #ball_att2_ = F.gumbel_softmax(ball_att2, dim=1, hard=True)
+        ball_att2_ = F.gumbel_softmax(ball_att2, dim=1, hard=True)
         ball_att2 = F.softmax(ball_att2, dim=1)
 
         player_att1 = player_att1.permute(0,2,1)
@@ -233,7 +233,6 @@ class Model(nn.Module):
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
-        #out, h_out = self.lstm(cat, h_in)
         out, h_out = self.lstm(cat, h_in)
         
         a_out = F.relu(self.norm_pi_a1(self.fc_pi_a1(out)))
@@ -248,7 +247,7 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        return prob, prob_m, v, h_out, []
+        return prob, prob_m, v, h_out, [player_att1.squeeze().squeeze(), right_left_player_att1.squeeze().squeeze(), player_att2.squeeze().squeeze()]
 
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size

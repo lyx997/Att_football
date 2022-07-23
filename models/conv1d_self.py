@@ -16,12 +16,12 @@ class Model(nn.Module):
             self.device = device
         self.arg_dict = arg_dict
 
-        self.fc_player = nn.Linear(arg_dict["feature_dims"]["player"],64)  
-        self.fc_ball = nn.Linear(arg_dict["feature_dims"]["ball"],64)
-        self.fc_left = nn.Linear(arg_dict["feature_dims"]["left_team"],48)
-        self.fc_right  = nn.Linear(arg_dict["feature_dims"]["right_team"],48)
-        self.fc_left_closest = nn.Linear(arg_dict["feature_dims"]["left_team_closest"],48)
-        self.fc_right_closest = nn.Linear(arg_dict["feature_dims"]["right_team_closest"],48)
+        self.fc_player = nn.Linear(29,64)  
+        self.fc_ball = nn.Linear(18,64)
+        self.fc_left = nn.Linear(7,48)
+        self.fc_right  = nn.Linear(7,48)
+        self.fc_left_closest = nn.Linear(7,48)
+        self.fc_right_closest = nn.Linear(7,48)
         
         self.conv1d_left = nn.Conv1d(48, 36, 1, stride=1)
         self.conv1d_right = nn.Conv1d(48, 36, 1, stride=1)

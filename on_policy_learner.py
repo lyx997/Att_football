@@ -25,7 +25,7 @@ def seperate_write_loss(i, writer, optimization_step, loss_lst, pi_loss_lst, v_l
         writer.add_scalar('train/def_entropy', np.mean(entropy_lst), optimization_step)
         writer.add_scalar('train/def_move_entropy', np.mean(move_entropy_lst), optimization_step)
 
-def seperate_write_summary(writer, arg_dict, summary_queue, optimization_step, self_play_board, win_evaluation, score_evaluation):
+def seperate_write_summary(writer, arg_dict, summary_queue, optimization_step, self_play_board, win_evaluation, score_evaluation, model):
     win, score, tot_reward, game_len = [], [], [], []
     loop_t, forward_t, wait_t = [], [], []
 
@@ -59,12 +59,22 @@ def seperate_write_summary(writer, arg_dict, summary_queue, optimization_step, s
     writer.add_scalar('time/forward', float(np.mean(forward_t)), optimization_step)
     writer.add_scalar('time/wait', float(np.mean(wait_t)), optimization_step)
     
-    mini_window = int(arg_dict['summary_game_window'])
+    mini_window = int(arg_dict['summary_eval_window'])
     if len(win_evaluation)>=mini_window:
         writer.add_scalar('game/win_rate_evaluation', float(np.mean(win_evaluation)), optimization_step)
         writer.add_scalar('game/score_evaluation', float(np.mean(score_evaluation)), optimization_step)
+
+        if float(np.mean(win_evaluation)) >= 0.98:
+            model_dict = {
+                'optimization_step': optimization_step,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': model.optimizer.state_dict(),
+            }
+            path = arg_dict["log_dir"]+"/model_"+str(optimization_step)+".tar"
+            torch.save(model_dict, path)
+            print("Win rate 100% Model saved :", path) 
         win_evaluation, score_evaluation = [], []
-    
+
     for opp_num in self_play_board:
         if len(self_play_board[opp_num]) >= mini_window:
             label = 'self_play/'+opp_num
@@ -74,7 +84,7 @@ def seperate_write_summary(writer, arg_dict, summary_queue, optimization_step, s
     return win_evaluation, score_evaluation
 
 def write_summary(writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst, v_loss_lst, \
-                  entropy_lst, move_entropy_lst, optimization_step, self_play_board, win_evaluation, score_evaluation):
+                  entropy_lst, move_entropy_lst, dis_att_loss_lst, att_entropy_lst, optimization_step, self_play_board, win_evaluation, score_evaluation, model):
     win, score, tot_reward, game_len = [], [], [], []
     loop_t, forward_t, wait_t = [], [], []
 
@@ -112,13 +122,26 @@ def write_summary(writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst
     writer.add_scalar('train/v_loss', np.mean(v_loss_lst), n_game)
     writer.add_scalar('train/entropy', np.mean(entropy_lst), n_game)
     writer.add_scalar('train/move_entropy', np.mean(move_entropy_lst), n_game)
+    writer.add_scalar('train/att_entropy', np.mean(att_entropy_lst), n_game)
+    writer.add_scalar('train/dis_att_loss', np.mean(dis_att_loss_lst), n_game)
 
     mini_window = int(arg_dict['summary_game_window'] // 3)
     if len(win_evaluation)>=mini_window:
         writer.add_scalar('game/win_rate_evaluation', float(np.mean(win_evaluation)), n_game)
         writer.add_scalar('game/score_evaluation', float(np.mean(score_evaluation)), n_game)
+
+        if float(np.mean(win_evaluation)) >= 0.98:
+            model_dict = {
+                'optimization_step': optimization_step,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': model.optimizer.state_dict(),
+            }
+            path = arg_dict["log_dir"]+"/model_"+str(optimization_step)+".tar"
+            torch.save(model_dict, path)
+            print("Model saved :", path)
+
         win_evaluation, score_evaluation = [], []
-    
+
     for opp_num in self_play_board:
         if len(self_play_board[opp_num]) >= mini_window:
             label = 'self_play/'+opp_num
@@ -224,7 +247,7 @@ def seperate_learner(i, center_model, queue, signal_queue, summary_queue, arg_di
             
             if summary_queue.qsize() > arg_dict["summary_game_window"] and i == 0:
                 win_evaluation, score_evaluation = seperate_write_summary(writer, arg_dict, summary_queue, optimization_step, 
-                                                                 self_play_board, win_evaluation, score_evaluation)
+                                                                 self_play_board, win_evaluation, score_evaluation, model)
 
             if len(loss_lst) >= 10:
                 seperate_write_loss(i, writer, optimization_step, loss_lst, pi_loss_lst, v_loss_lst, entropy_lst, move_entropy_lst)
@@ -258,7 +281,7 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
         optimization_step = arg_dict["optimization_step"]
     last_saved_step = optimization_step
     n_game = 0
-    loss_lst, pi_loss_lst, v_loss_lst, entropy_lst, move_entropy_lst = [], [], [], [], []
+    loss_lst, pi_loss_lst, v_loss_lst, entropy_lst, move_entropy_lst, dis_att_loss_lst, att_entropy_lst = [], [], [], [], [], [], []
     self_play_board = {}
 
     win_evaluation, score_evaluation = [], []
@@ -269,7 +292,7 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
             
             signal_queue.put(1)
             data = get_data(queue, arg_dict, model)
-            loss, pi_loss, v_loss, entropy, move_entropy = algo.train(model, data)
+            loss, pi_loss, v_loss, entropy, move_entropy, dis_att_loss, att_entropy = algo.train(model, data)
             optimization_step += arg_dict["batch_size"]*arg_dict["buffer_size"]*arg_dict["k_epoch"]
             print("step :", optimization_step, "loss", loss, "data_q", queue.qsize(), "summary_q", summary_queue.qsize())
             
@@ -278,6 +301,8 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
             v_loss_lst.append(v_loss)
             entropy_lst.append(entropy)
             move_entropy_lst.append(move_entropy)
+            dis_att_loss_lst.append(dis_att_loss)
+            att_entropy_lst.append(att_entropy)
             center_model.load_state_dict(model.state_dict())
             
             if queue.qsize() > arg_dict["batch_size"]*arg_dict["buffer_size"]:
@@ -285,9 +310,9 @@ def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
             
             if summary_queue.qsize() > arg_dict["summary_game_window"]:
                 win_evaluation, score_evaluation = write_summary(writer, arg_dict, summary_queue, n_game, loss_lst, pi_loss_lst, 
-                                                                 v_loss_lst, entropy_lst, move_entropy_lst, optimization_step, 
-                                                                 self_play_board, win_evaluation, score_evaluation)
-                loss_lst, pi_loss_lst, v_loss_lst, entropy_lst, move_entropy_lst = [], [], [], [], []
+                                                                 v_loss_lst, entropy_lst, move_entropy_lst, dis_att_loss, att_entropy, optimization_step, 
+                                                                 self_play_board, win_evaluation, score_evaluation, model)
+                loss_lst, pi_loss_lst, v_loss_lst, entropy_lst, move_entropy_lst, dis_att_loss_lst, att_entropy_lst= [], [], [], [], [], [], []
                 n_game += arg_dict["summary_game_window"]
                 
             _ = signal_queue.get()             

@@ -36,15 +36,6 @@ class Model(nn.Module):
         self.fc_right_state  = nn.Linear(arg_dict["feature_dims"]["right_team_state"],64)
         #self.fc_right2_state  = nn.Linear(64,64)
 
-        #self.fc_left_state = nn.Linear(arg_dict["feature_dims"]["left_team_state"], 48)
-        #self.fc_right_state = nn.Linear(arg_dict["feature_dims"]["left_team_state"], 48)
-
-        #self.conv1d_left = nn.Conv1d(48, 36, 1, stride=1)
-        #self.conv1d_right = nn.Conv1d(48, 36, 1, stride=1)
-
-        #self.fc_left2_state = nn.Linear(36, 64)
-        #self.fc_right2_state = nn.Linear(36, 64)
-
         self.fc_att1_attack_ws = nn.Linear(64,64)
         self.fc_att1_attack_as = nn.Linear(128,1)
         self.fc_att2_attack_ws = nn.Linear(64,64)
@@ -189,7 +180,7 @@ class Model(nn.Module):
         
         left_team_right_ws1 = self.fc_att1_attack_ws(left_team_state_embed)
         left_team_right_ws1_repeat = self.fc_att1_attack_ws(left_team_embed_repeat)
-        left_team_right_ws1_repeat = left_team_right_ws1_repeat.view(horizon*batch*n_left, n_right+1, -1)#(1*10,11,64)
+        left_team_right_ws1_repeat = left_team_right_ws1_repeat.view(horizon*batch*n_left, n_right+1, -1)#(1*10,12,64)
 
         right_left_ws1 = self.fc_att1_attack_ws(right_team_embed_repeat)
         right_left_ws1 = right_left_ws1.view(horizon*batch*n_left, n_right, -1)#(1*10,11,64)
@@ -254,7 +245,6 @@ class Model(nn.Module):
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
-        #out, h_out = self.lstm(cat, h_in)
         out, h_out = self.lstm(cat, h_in)
         
         a_out = F.relu(self.norm_pi_a1(self.fc_pi_a1(out)))
@@ -269,7 +259,7 @@ class Model(nn.Module):
         v = F.relu(self.norm_v1(self.fc_v1(out)))
         v = self.fc_v2(v)
 
-        return prob, prob_m, v, h_out, []
+        return prob, prob_m, v, h_out, [player_right_att1.squeeze().squeeze(), right_left_player_att1.squeeze().squeeze(), player_att2.squeeze().squeeze()]
 
     def make_batch(self, data):
         # data = [tr1, tr2, ..., tr10] * batch_size
