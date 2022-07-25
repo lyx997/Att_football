@@ -57,7 +57,7 @@ def main(arg_dict):
     arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
 
     save_args(arg_dict)
-    if arg_dict["trained_model_path"] and 'kaggle' in arg_dict['env']: 
+    if arg_dict["trained_model_path"] and '11_vs_11_kaggle' in arg_dict['env']: 
         copy_models(os.path.dirname(arg_dict['trained_model_path']), arg_dict['log_dir'])
 
     np.set_printoptions(precision=3)
@@ -145,22 +145,22 @@ if __name__ == '__main__':
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
 
-        "trained_model_path" : '', # use when you want to continue traning from given model.
+        "trained_model_path" : 'logs/[07-21]22.44.51_team_opp_attention19_rewarder_highpass23_self_play/model_40200000.tar', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play trainng. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def_latest10",
-        "rewarder" : "rewarder_highpass25",
-        "model" : "team_opp_attention18",
+        "encoder" : "encoder_gat_att_def_latest11",
+        "rewarder" : "rewarder_highpass26",
+        "model" : "team_opp_attention19",
         #"model" : "gat_att_def6_latest12",
         "algorithm" : "ppo_with_lstm_att_loss",
         "tmux": "football2",
         "get_score":False,
 
-        "env_evaluation":'tensorboard/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'tensorboard/selfplay/model_80725824.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

@@ -15,16 +15,27 @@ import math
 from datetime import datetime, timedelta
 
 #from encoders.encoder_gat import state_to_tensor
-
-def find_most_att_idx(player_att2_idx, active_idx):
+def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx):
     player_att2_idx = player_att2_idx.squeeze().squeeze()
-    most_att_idx = player_att2_idx.sort(descending=True)[1][0]
-    most_att = player_att2_idx[most_att_idx]
-    if active_idx <= most_att_idx:
-        most_att_idx += 1
-    att_idx = [most_att_idx]
-  
-    return att_idx, most_att
+    opp_att2_idx = opp_att2_idx.squeeze().squeeze()
+    player_most_att_idx = player_att2_idx.sort(descending=True)[1][0]
+    most_att = player_att2_idx[player_most_att_idx]
+    opp_most_att_idx = opp_att2_idx.sort(descending=True)[1][0]
+    opp_most_att = opp_att2_idx[opp_most_att_idx]
+    if active_idx <= player_most_att_idx:
+        player_most_att_idx += 1
+    player_att_idx = [player_most_att_idx]
+    opp_att_idx = [opp_most_att_idx]
+    return player_att_idx, opp_att_idx, most_att, opp_most_att
+#def find_most_att_idx(player_att2_idx, active_idx):
+#    player_att2_idx = player_att2_idx.squeeze().squeeze()
+#    most_att_idx = player_att2_idx.sort(descending=True)[1][0]
+#    most_att = player_att2_idx[most_att_idx]
+#    if active_idx <= most_att_idx:
+#        most_att_idx += 1
+#    att_idx = [most_att_idx]
+#  
+#    return att_idx, most_att
 
 def split_att_idx(all_sorted_idx):
     team_att_idx_list = []
@@ -677,7 +688,9 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
 
         prev_obs = []
         prev_most_att_idx = []
+        prev_opp_most_att_idx = []
         prev_most_att = 0.0
+        prev_opp_most_att = 0.0
         highpass = False
         done = False
         active_idx = obs["active"]
@@ -703,14 +716,14 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict = fe.encode(obs, opp_active)
+            state_dict = fe.encode(obs)
             state_dict_tensor = state_to_tensor(state_dict, h_in)
-            opp_state_dict = fe.encode(opp_obs, active_idx)
+            opp_state_dict = fe.encode(opp_obs)
             opp_state_dict_tensor = state_to_tensor(opp_state_dict, opp_h_in)
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, player_att_idx, _ = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, player_att_idx, opp_att_idx = model(state_dict_tensor)
                 active_idx = obs["active"]
                 #most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
                 opp_a_prob, opp_m_prob, _, opp_h_out, _, _ = opp_model(opp_state_dict_tensor)
@@ -726,7 +739,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                     highpass = False
                 prev_obs = obs
                 #active_idx = obs["active"]
-                prev_most_att_idx, prev_most_att = find_most_att_idx(player_att_idx[0], active_idx)
+                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx)
             
             if a == 3:
                 highpass = True
@@ -742,9 +755,10 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                 get_score = True
                 prev_obs = []
                 prev_most_att_idx = []
+                prev_opp_most_att_idx = []
 
-            fin_r = rewarder.calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass)
-            state_prime_dict = fe.encode(obs, opp_active)
+            fin_r = rewarder.calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, prev_opp_most_att_idx, prev_opp_most_att)
+            state_prime_dict = fe.encode(obs)
 
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
@@ -768,9 +782,9 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                 if score > 0:
                     win = 1
                 if seed < 0.5:
-                    print("score {}, total reward {:.2f}, opp num:{}, right opp:{} ".format(score,tot_reward,opp_model_num, opp_model_path))
+                    print("left score {}, total reward {:.2f}, opp num:{}, right opp:{} ".format(score,tot_reward,opp_model_num, opp_model_path))
                 else:
-                    print("score {}, total reward {:.2f}, opp num:{}, left opp:{} ".format(score,tot_reward,opp_model_num, opp_model_path))
+                    print("right score {}, total reward {:.2f}, opp num:{}, left opp:{} ".format(score,tot_reward,opp_model_num, opp_model_path))
                 summary_data = (win, score, tot_reward, steps, str(opp_model_num), loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)                
 

@@ -42,7 +42,7 @@ arg_dict = {
     #"left_model_path" : "tensorboard\with-pae\model_1500480_att3.tar",
     #"left_model_path" : "tensorboard\with-pae\model_10503360_att2.tar",
     #"left_model_path" : "tensorboard\with-pae\model_49215744_att_def6.tar",
-    "left_model_path" : "logs/[07-20]13.15.43_team_opp_attention17_rewarder_highpass23/model_600960.tar",
+    "left_model_path" : "tensorboard/selfplay/model_80725824.tar",
     #"left_model_path" : "logs/[06-02]23.10.26_gat_att_def6_latest_reward1/model_41793408.tar",
     #"left_model_path" : "tensorboard\with-pae\model_14704704_selfplay_att_def6_latest.tar",
     #"left_model_path" : "tensorboard\with-pae\model_69022080_att_def6.tar",
@@ -53,9 +53,9 @@ arg_dict = {
 
 }
 
-left_fe = FE3()
+left_fe = FE()
 arg_dict["feature_dims"] = left_fe.get_feature_dims()
-left_model = Team12(arg_dict)
+left_model = PPO(arg_dict)
 #left_model = Gat9(arg_dict)
 #left_model = Gat3(arg_dict)
 cpu_device = torch.device('cpu')
@@ -85,7 +85,7 @@ def agent(obs, args):
 
     obs = obs[0]
     state_dict = left_fe.encode(obs)
-    state_dict_tensor = stt3(state_dict, left_hidden)
+    state_dict_tensor = stt(state_dict, left_hidden)
     with torch.no_grad():
         a_prob, m_prob, _, left_hidden, attack_att, defence_att = left_model(state_dict_tensor)
         
@@ -256,7 +256,7 @@ while True:
             #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
 
         #obs = env.att_step(action, [team_att_idx, opp_att_idx, active_idx])
-        obs = env.att_step(action, [])
+        obs = env.att_step(action, [[],[]])
         left_score = obs[1]
 
         left_score += init_left_score

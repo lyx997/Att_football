@@ -12,17 +12,18 @@ from os.path import isfile, join
 from datetime import datetime, timedelta
 import random
 
-def find_most_att_idx(player_att2_idx, ball_att2_idx, active_idx):
+def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx):
     player_att2_idx = player_att2_idx.squeeze().squeeze()
-    ball_att2_idx = ball_att2_idx.squeeze().squeeze()
+    opp_att2_idx = opp_att2_idx.squeeze().squeeze()
     player_most_att_idx = player_att2_idx.sort(descending=True)[1][0]
     most_att = player_att2_idx[player_most_att_idx]
-    ball_most_att_idx = ball_att2_idx.sort(descending=True)[1][0]
+    opp_most_att_idx = opp_att2_idx.sort(descending=True)[1][0]
+    opp_most_att = opp_att2_idx[opp_most_att_idx]
     if active_idx <= player_most_att_idx:
         player_most_att_idx += 1
     player_att_idx = [player_most_att_idx]
-    ball_att_idx = [ball_most_att_idx]
-    return player_att_idx, ball_att_idx, most_att
+    opp_att_idx = [opp_most_att_idx]
+    return player_att_idx, opp_att_idx, most_att, opp_most_att
 
 def get_action(a_prob, m_prob):
     a = Categorical(a_prob).sample().item()
@@ -67,11 +68,12 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                                           stacked=False, logdir=arg_dict["log_dir_dump_left"], write_goal_dumps=True, write_full_episode_dumps=False, \
                                           render=False, write_video=True)
     env_right = football_env.create_environment(env_name=arg_dict["env"], number_of_right_players_agent_controls=1, representation="raw", \
-                                          stacked=False, logdir='/tmp/football', write_goal_dumps=False, write_full_episode_dumps=False, \
+                                          stacked=False, logdir=arg_dict["log_dir_dump_right"], write_goal_dumps=False, write_full_episode_dumps=False, \
                                           render=False)
     n_epi = 0
     while True: # episode loop
         seed = 0.1
+        #seed = random.random()
 
         if seed < 0.5:
             env_left.reset()   
@@ -109,7 +111,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict = fe1.encode(obs, opp_active)
+            state_dict = fe1.encode(obs)
             opp_state_dict = fe2.encode(opp_obs)
             state_dict_tensor = state_to_tensor1(state_dict, h_in)
             opp_state_dict_tensor = state_to_tensor2(opp_state_dict, opp_h_in)
@@ -119,7 +121,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 a_prob, m_prob, _, h_out, player_att_idx, defence_att_idx = model(state_dict_tensor)
                 opp_a_prob, opp_m_prob, _, opp_h_out = opp_model(opp_state_dict_tensor)
                 active_idx = obs["active"]
-                player_most_att_idx, ball_most_att_idx, player_most_att = find_most_att_idx(player_att_idx[0], defence_att_idx[0], active_idx)
+                player_most_att_idx, opp_most_att_idx, player_most_att, opp_most_att = find_most_att_idx(player_att_idx[0], defence_att_idx[0], active_idx)
             forward_t += time.time()-t1 
 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -136,9 +138,9 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 highpass = True
 
             if seed < 0.5:
-                [obs, opp_obs], [rew, _], done, info = env_left.att_step([real_action, opp_real_action], [player_most_att_idx, ball_most_att_idx])
+                [obs, opp_obs], [rew, _], done, info = env_left.att_step([real_action, opp_real_action], [player_most_att_idx, opp_most_att_idx])
             else:
-                [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [player_most_att_idx, ball_most_att_idx])
+                [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [player_most_att_idx, opp_most_att_idx])
 
             opp_active = opp_obs["active"]
 
@@ -146,9 +148,10 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 get_score = True
                 prev_obs = []
 
-            fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass)
+            #fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass)
+            fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass, opp_most_att_idx, opp_most_att)
 
-            state_prime_dict = fe1.encode(obs, opp_active)
+            state_prime_dict = fe1.encode(obs)
             
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
@@ -166,9 +169,9 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 if score > 0:
                     win = 1
                 if seed < 0.5:
-                    print("Evaluate with right", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
-                else:
                     print("Evaluate with left", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
+                else:
+                    print("Evaluate with right", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
                 summary_data = (win, score, tot_reward, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)
 
