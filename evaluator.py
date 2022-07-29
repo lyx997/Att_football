@@ -12,7 +12,7 @@ from os.path import isfile, join
 from datetime import datetime, timedelta
 import random
 
-def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx):
+def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx, opp_idx):
     player_att2_idx = player_att2_idx.squeeze().squeeze()
     opp_att2_idx = opp_att2_idx.squeeze().squeeze()
     player_most_att_idx = player_att2_idx.sort(descending=True)[1][0]
@@ -21,9 +21,12 @@ def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx):
     opp_most_att = opp_att2_idx[opp_most_att_idx]
     if active_idx <= player_most_att_idx:
         player_most_att_idx += 1
+    if opp_idx <= opp_most_att_idx:
+        opp_most_att_idx += 1
     player_att_idx = [player_most_att_idx]
     opp_att_idx = [opp_most_att_idx]
     return player_att_idx, opp_att_idx, most_att, opp_most_att
+
 
 def get_action(a_prob, m_prob):
     a = Categorical(a_prob).sample().item()
@@ -64,15 +67,15 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
     opp_model.load_state_dict(opp_model_checkpoint['model_state_dict'])
 
     
-    env_left = football_env.create_environment(env_name=arg_dict["env"], number_of_right_players_agent_controls=1, representation="raw", \
+    env_left = football_env.create_environment(env_name="11_vs_11_stochastic", number_of_right_players_agent_controls=1, representation="raw", \
                                           stacked=False, logdir=arg_dict["log_dir_dump_left"], write_goal_dumps=True, write_full_episode_dumps=False, \
                                           render=False, write_video=True)
-    env_right = football_env.create_environment(env_name=arg_dict["env"], number_of_right_players_agent_controls=1, representation="raw", \
-                                          stacked=False, logdir=arg_dict["log_dir_dump_right"], write_goal_dumps=False, write_full_episode_dumps=False, \
-                                          render=False)
+    env_right = football_env.create_environment(env_name="11_vs_11_stochastic", number_of_right_players_agent_controls=1, representation="raw", \
+                                          stacked=False, logdir=arg_dict["log_dir_dump_right"], write_goal_dumps=True, write_full_episode_dumps=False, \
+                                          render=False, write_video=True)
     n_epi = 0
     while True: # episode loop
-        seed = 0.1
+        seed = arg_dict["seed"]
         #seed = random.random()
 
         if seed < 0.5:
@@ -87,7 +90,6 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
         done = False
         highpass = False
         active_idx = obs["active"]
-        opp_active = opp_obs["active"]
         steps, score, tot_reward, win = 0, 0, 0, 0
         n_epi += 1
         h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
@@ -111,7 +113,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict = fe1.encode(obs)
+            state_dict, opp_num = fe1.encode(obs)
             opp_state_dict = fe2.encode(opp_obs)
             state_dict_tensor = state_to_tensor1(state_dict, h_in)
             opp_state_dict_tensor = state_to_tensor2(opp_state_dict, opp_h_in)
@@ -121,7 +123,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 a_prob, m_prob, _, h_out, player_att_idx, defence_att_idx = model(state_dict_tensor)
                 opp_a_prob, opp_m_prob, _, opp_h_out = opp_model(opp_state_dict_tensor)
                 active_idx = obs["active"]
-                player_most_att_idx, opp_most_att_idx, player_most_att, opp_most_att = find_most_att_idx(player_att_idx[0], defence_att_idx[0], active_idx)
+                player_most_att_idx, opp_most_att_idx, player_most_att, opp_most_att = find_most_att_idx(player_att_idx[0], defence_att_idx[0], active_idx, opp_num)
             forward_t += time.time()-t1 
 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -151,7 +153,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             #fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass)
             fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass, opp_most_att_idx, opp_most_att)
 
-            state_prime_dict = fe1.encode(obs)
+            state_prime_dict, _ = fe1.encode(obs)
             
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out

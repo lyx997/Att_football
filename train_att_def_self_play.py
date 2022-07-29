@@ -10,8 +10,8 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from learner import *
-from evaluator_with_hard_att_def import evaluator
+from on_policy_learner import *
+from evaluator_with_hard_att_def import on_policy_evaluator
 #from evaluator import evaluator
 from datetime import datetime, timedelta
 
@@ -93,12 +93,12 @@ def main(arg_dict):
         if arg_dict["env"] == "11_vs_11_kaggle":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
-            p = mp.Process(target=integrat_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=on_policy_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
     for i in range(5):
         if "env_evaluation" in arg_dict:
-            p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=on_policy_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
             processes.append(p)
         
@@ -123,21 +123,21 @@ if __name__ == '__main__':
         "learning_rate" : 0.0001,
         "gamma" : 0.993,
         "lmbda" : 0.96,
-        "entropy_coef" : 0.0001,
+        "entropy_coef" : 0.00001,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 900000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play trainng. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def",
+        "encoder" : "encoder_gat_att_def_seperate",
         "rewarder" : "rewarder_att_def",
-        "model" : "gat_att_def6_latest",
+        "model" : "team_opp_attention7",
         "algorithm" : "ppo_with_lstm",
 
         "env_evaluation":'11_vs_11_kaggle'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

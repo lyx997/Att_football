@@ -13,7 +13,7 @@ def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, 
     elif (-MIDDLE_X <= ball_x and ball_x <= MIDDLE_X) and (-END_Y < ball_y and ball_y < END_Y):
         ball_position_r = 0.0
     elif (PENALTY_X < ball_x  and ball_x <= END_X) and (-END_Y < ball_y and ball_y < END_Y):
-        ball_position_r = 1.0
+        ball_position_r = 2.0
     elif (MIDDLE_X < ball_x   and ball_x <= PENALTY_X) and (-END_Y < ball_y and ball_y < END_Y):
         ball_position_r = 1.0
     else:
@@ -24,6 +24,7 @@ def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, 
         [my_score, opponent_score] = obs['score']
         if my_score > opponent_score:
             win_reward = 1.0
+
     yellow_r = 0.0
     change_ball_owned_reward = 0.0
     safe_pass_reward = 0.0
@@ -44,16 +45,16 @@ def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, 
             change_ball_owned_reward = 3.0
         elif owned_ball_team == 1 and prev_owned_ball_team == 0 :
             change_ball_owned_reward = -3.0
-        elif owned_ball_team == 1 and prev_owned_ball_team == 1 and prev_owned_ball_player != owned_ball_player and owned_ball_player in prev_opp_most_att_idx and prev_opp_most_att > 0.3:
-            change_ball_owned_reward = 1.0
+        elif owned_ball_team == 1 and prev_owned_ball_team == 1 and active_pos_x < 0.2 and prev_owned_ball_player != owned_ball_player and owned_ball_player in prev_opp_most_att_idx and prev_opp_most_att > 0.3:
+            change_ball_owned_reward = float(np.exp(prev_opp_most_att - 0.3) - 1)
         elif owned_ball_team == 1 and prev_owned_ball_team == 1 and prev_owned_ball_player != owned_ball_player:
             change_ball_owned_reward = -1.0
-        elif owned_ball_team == 0 and prev_owned_ball_team == 0 and highpass and active_pos_x > 0 and prev_owned_ball_player != owned_ball_player and active in prev_most_att_idx and prev_most_att > 0.3:
-            change_ball_owned_reward = 1.0
+        elif owned_ball_team == 0 and prev_owned_ball_team == 0 and highpass and active_pos_x > -0.2 and prev_owned_ball_player != owned_ball_player and active in prev_most_att_idx and prev_most_att > 0.3:
+            change_ball_owned_reward = float(np.exp(prev_most_att - 0.3))
 
         prev_active = prev_obs['active']
         prev_active_pos_x = obs['left_team'][prev_active][0]
-        if  prev_owned_ball_team == 0 and owned_ball_team == 0 and active_pos_x > 0 and prev_owned_ball_player != owned_ball_player:
+        if  prev_owned_ball_team == 0 and owned_ball_team == 0 and active_pos_x > -0.2 and prev_owned_ball_player != owned_ball_player:
             obs_right_team = np.array(obs['right_team'])
             prev_obs_right_team = np.array(prev_obs['right_team'])
             right_team_distance = np.linalg.norm(obs_right_team - obs['left_team'][active], axis=1, keepdims=True)

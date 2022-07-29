@@ -1,6 +1,6 @@
 import numpy as np
 
-def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass):
+def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, a, b):
     ball_x, ball_y, ball_z = obs['ball']
     MIDDLE_X, PENALTY_X, END_X = 0.2, 0.64, 1.0
     PENALTY_Y, END_Y = 0.27, 0.42

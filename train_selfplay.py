@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from learner import *
+from on_policy_learner import *
 #from evaluator_with_hard import evaluator
 from evaluator_with_hard_att_def import evaluator
 from datetime import datetime, timedelta

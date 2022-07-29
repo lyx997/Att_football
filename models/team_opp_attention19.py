@@ -101,18 +101,22 @@ class Model(nn.Module):
         # 1 layer attention ----- Right team embed to Player, Left team
 
         right_team_q1 = self.fc_q1_attack(right_team_state_embed) #(1,11,48)
+        opp_q1 = self.fc_q1_attack(opp_state_embed) #(1,11,48)
         right_team_v1 = self.fc_v1_attack(right_team_state_embed) #(1,11,48)
+        opp_v1 = self.fc_v1_attack(opp_state_embed) #(1,11,48)    
         left_team_k1 = self.fc_k1_attack(left_team_state_embed) #(1,10,48)
         left_team_v1 = self.fc_v1_attack(left_team_state_embed) #(1,10,48)
         player_k1 = self.fc_k1_attack(player_state_embed) #(1,1,48)
         player_v1 = self.fc_v1_attack(player_state_embed) #(1,1,48)
         all_left_team_k1 = torch.cat([player_k1, left_team_k1], dim=1) #(1,11,48)
+        all_right_team_q1 = torch.cat([opp_q1, right_team_q1], dim=1) #(1,11,48)
+        all_right_team_v1 = torch.cat([opp_v1, right_team_v1], dim=1) #(1,11,48)
 
-        right_team_att_toleft = torch.bmm(right_team_q1, all_left_team_k1.permute(0,2,1)) #(1,11,11)
+        right_team_att_toleft = torch.bmm(all_right_team_q1, all_left_team_k1.permute(0,2,1)) #(1,11,11)
         right_team_att_toleft_ = F.softmax(right_team_att_toleft, dim=-1)
         #right_team_att_toleft_ = F.gumbel_softmax(right_team_att_toleft, dim=-1, hard=True)
         right_att_toleft = right_team_att_toleft_.permute(0,2,1) #(1,11,11)
-        right_team_att_embed = torch.bmm(right_att_toleft, right_team_v1) #(1,11,48)
+        right_team_att_embed = torch.bmm(right_att_toleft, all_right_team_v1) #(1,11,48)
         right_team_att_player_embed = right_team_att_embed[:,0,:].unsqueeze(1) #(1,1,48)
         right_team_att_left_embed = right_team_att_embed[:,1:,:] #(1,10,48)
 
@@ -140,17 +144,21 @@ class Model(nn.Module):
         # 1 layer attention ----- Right team embed to Player, Left team
 
         left_team_q1 = self.fc_q1_defence(left_team_state_embed) #(1,11,48)
+        player_q1 = self.fc_q1_defence(player_state_embed) #(1,11,48)
         left_team_v1 = self.fc_v1_defence(left_team_state_embed) #(1,11,48)
+        player_v1 = self.fc_v1_defence(player_state_embed) #(1,11,48)
         right_team_k1 = self.fc_k1_defence(right_team_state_embed) #(1,10,48)
         right_team_v1 = self.fc_v1_defence(right_team_state_embed) #(1,10,48)
         opp_k1 = self.fc_k1_defence(opp_state_embed) #(1,1,48)
         opp_v1 = self.fc_v1_defence(opp_state_embed) #(1,1,48)
+        all_left_team_q1 = torch.cat([player_q1, left_team_q1], dim=1) #(1,11,48)
+        all_left_team_v1 = torch.cat([player_v1, left_team_v1], dim=1) #(1,11,48)
         all_right_team_k1 = torch.cat([opp_k1, right_team_k1], dim=1) #(1,11,48)
 
-        left_team_att_toright = torch.bmm(left_team_q1, all_right_team_k1.permute(0,2,1)) #(1,11,11)
+        left_team_att_toright = torch.bmm(all_left_team_q1, all_right_team_k1.permute(0,2,1)) #(1,11,11)
         left_team_att_toright_ = F.softmax(left_team_att_toright, dim=-1)
         left_att_toright = left_team_att_toright_.permute(0,2,1) #(1,11,11)
-        left_team_att_embed = torch.bmm(left_att_toright, left_team_v1) #(1,11,48)
+        left_team_att_embed = torch.bmm(left_att_toright, all_left_team_v1) #(1,11,48)
         left_team_att_opp_embed = left_team_att_embed[:,0,:].unsqueeze(1) #(1,1,48)
         left_team_att_right_embed = left_team_att_embed[:,1:,:] #(1,10,48)
 
@@ -192,7 +200,7 @@ class Model(nn.Module):
         v = F.relu(self.norm_value1(self.fc_value1(out)))
         v = self.fc_value2(v)
 
-        return prob, prob_m, v, h_out, [left_att_.view(horizon, batch, n_left), right_team_att_toleft_.view(horizon, batch, 11, 11)], [right_att_.view(horizon, batch, n_right), left_team_att_toright_.view(horizon, batch, 10, 12)]#[player_att1_right.view(horizon, batch, 11), left_right_att1.view(horizon, batch, 11, 11), player_left_att2.view(horizon, batch, 11)], \
+        return prob, prob_m, v, h_out, [left_att_.view(horizon, batch, n_left), right_team_att_toleft_.view(horizon, batch, 11, 11)], [right_att_.view(horizon, batch, n_right), left_team_att_toright_.view(horizon, batch, 11, 11)]#[player_att1_right.view(horizon, batch, 11), left_right_att1.view(horizon, batch, 11, 11), player_left_att2.view(horizon, batch, 11)], \
                 #[ball_att1_left.view(horizon, batch, 11), right_left_att1.view(horizon, batch, 11, 11), ball_right_att2.view(horizon, batch, 11)]
 
     def make_batch(self, data):

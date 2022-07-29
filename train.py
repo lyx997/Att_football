@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
 
 from actor import *
-from learner import *
+from on_policy_learner import *
 from evaluator_with_hard import evaluator
 #from evaluator import evaluator
 from datetime import datetime, timedelta
@@ -108,7 +108,7 @@ def main(arg_dict):
 if __name__ == '__main__':
 
     arg_dict = {
-        "env": "11_vs_11_stochastic",    
+        "env": "11_vs_11_kaggle",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
@@ -136,10 +136,10 @@ if __name__ == '__main__':
 
         "encoder" : "encoder_gat3",
         "rewarder" : "rewarder_att_def",
-        "model" : "gat_att_def3",#add left right closest
+        "model" : "conv1d",#add left right closest
         "algorithm" : "ppo_with_lstm",
 
-        "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'11_vs_11_kaggle'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

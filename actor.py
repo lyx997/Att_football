@@ -15,7 +15,7 @@ import math
 from datetime import datetime, timedelta
 
 #from encoders.encoder_gat import state_to_tensor
-def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx):
+def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx, opp_idx):
     player_att2_idx = player_att2_idx.squeeze().squeeze()
     opp_att2_idx = opp_att2_idx.squeeze().squeeze()
     player_most_att_idx = player_att2_idx.sort(descending=True)[1][0]
@@ -24,6 +24,8 @@ def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx):
     opp_most_att = opp_att2_idx[opp_most_att_idx]
     if active_idx <= player_most_att_idx:
         player_most_att_idx += 1
+    if opp_idx <= opp_most_att_idx:
+        opp_most_att_idx += 1
     player_att_idx = [player_most_att_idx]
     opp_att_idx = [opp_most_att_idx]
     return player_att_idx, opp_att_idx, most_att, opp_most_att
@@ -662,17 +664,17 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
     model.load_state_dict(center_model.state_dict())
     opp_model = imported_model.Model(arg_dict)
     
-    env_left = football_env.create_environment(env_name=arg_dict["env"], number_of_right_players_agent_controls=1, representation="raw", \
+    env_left = football_env.create_environment(env_name="11_vs_11_stochastic", number_of_right_players_agent_controls=1, representation="raw", \
                                           stacked=False, logdir='/tmp/football', write_goal_dumps=False, write_full_episode_dumps=False, \
                                           render=False)
-    env_right = football_env.create_environment(env_name=arg_dict["env"], number_of_right_players_agent_controls=1, representation="raw", \
+    env_right = football_env.create_environment(env_name="11_vs_11_stochastic", number_of_right_players_agent_controls=1, representation="raw", \
                                           stacked=False, logdir='/tmp/football', write_goal_dumps=False, write_full_episode_dumps=False, \
                                           render=False)
     n_epi = 0
     rollout = []
     while True: # episode loop
         #seed = random.random()
-        seed = 0.1
+        seed = arg_dict["seed"]
         opp_model_num, opp_model_path = select_opponent(arg_dict)
         checkpoint = torch.load(opp_model_path, map_location=cpu_device)
         opp_model.load_state_dict(checkpoint['model_state_dict'])
@@ -716,9 +718,9 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict = fe.encode(obs)
+            state_dict, opp_num = fe.encode(obs)
             state_dict_tensor = state_to_tensor(state_dict, h_in)
-            opp_state_dict = fe.encode(opp_obs)
+            opp_state_dict, _ = fe.encode(opp_obs)
             opp_state_dict_tensor = state_to_tensor(opp_state_dict, opp_h_in)
             
             t1 = time.time()
@@ -739,7 +741,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                     highpass = False
                 prev_obs = obs
                 #active_idx = obs["active"]
-                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx)
+                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
             
             if a == 3:
                 highpass = True
@@ -758,7 +760,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                 prev_opp_most_att_idx = []
 
             fin_r = rewarder.calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, prev_opp_most_att_idx, prev_opp_most_att)
-            state_prime_dict = fe.encode(obs)
+            state_prime_dict, _ = fe.encode(obs)
 
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out

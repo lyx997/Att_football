@@ -140,14 +140,15 @@ if __name__ == '__main__':
         "gamma" : 0.993,
         "lmbda" : 0.96,
         "entropy_coef" : 0.0001,
-        "attention_coef" : 0.1,
+        "attention_coef" : 0.0001,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
+        "seed" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
-        "trained_model_path" : 'logs/[07-21]22.44.51_team_opp_attention19_rewarder_highpass23_self_play/model_40200000.tar', # use when you want to continue traning from given model.
+        "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play trainng. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
@@ -157,10 +158,10 @@ if __name__ == '__main__':
         "model" : "team_opp_attention19",
         #"model" : "gat_att_def6_latest12",
         "algorithm" : "ppo_with_lstm_att_loss",
-        "tmux": "football2",
+        "tmux": "football1",
         "get_score":False,
 
-        "env_evaluation":'tensorboard/selfplay/model_80725824.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
+        "env_evaluation":'tensorboard/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }
     
     main(arg_dict)

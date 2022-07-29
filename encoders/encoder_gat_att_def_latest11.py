@@ -132,7 +132,7 @@ class FeatureEncoder:
                                      np.array([ball_speed*20, ball_distance, ball_owned, ball_owned_by_us])))
         
         player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, [player_speed*100, 0., player_tired, 1, 0, 0]))
-        opp_state = np.concatenate((obs['right_team'][opp_num], opp_direction*100, [opp_speed*100, 0., opp_tired, 1, 0, 0]))
+        opp_state = np.concatenate((obs['right_team'][opp_num], opp_direction*100, [opp_speed*100, 0., opp_tired, 0, 1, 0]))
         ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, [ball_speed*20, ball_distance, 0., 0, 0, 1]))
 
 
@@ -158,11 +158,12 @@ class FeatureEncoder:
         left_closest_state = left_team_state[left_closest_idx]
 
         #right_team_over_pass_idx = np.where(obs_right_team[:,0] < right_pass_line)
-        obs_right_team_direction = np.array(obs['right_team_direction'])
-        #right_team_distance = np.linalg.norm(obs_right_team - obs['left_team'][player_num], axis=1, keepdims=True)
+        obs_right_team = np.delete(obs['right_team'], opp_num, axis=0)
+        obs_right_team_direction = np.delete(obs['right_team_direction'], opp_num, axis=0)
+        right_team_distance = np.linalg.norm(obs_right_team - obs['left_team'][player_num], axis=1, keepdims=True)
         right_team_speed = np.linalg.norm(obs_right_team_direction, axis=1, keepdims=True)
-        right_team_tired = np.array(obs['right_team_tired_factor']).reshape(-1,1)
-        right_team_onehot = np.zeros((11,3))
+        right_team_tired = np.delete(obs['right_team_tired_factor'], opp_num, axis=0).reshape(-1,1)
+        right_team_onehot = np.zeros((10,3))
         right_team_onehot[:,1] = 1
         right_team_state = np.concatenate((obs_right_team*2, obs_right_team_direction*100, right_team_speed*100, \
                                            right_team_distance*2, right_team_tired, right_team_onehot), axis=1)
@@ -208,7 +209,7 @@ class FeatureEncoder:
                       "right_closest":right_closest_state,
                       }
 
-        return state_dict
+        return state_dict, opp_num
     
     def _get_score(self, score):
         left_score = score[0]

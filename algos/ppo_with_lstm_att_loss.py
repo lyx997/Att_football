@@ -63,17 +63,26 @@ class Algo():
                 s, a, m, r, s_prime, done_mask, prob, need_move, td_target, advantage = mini_batch
 
                 left_right_dis = s["left_right_dis"]
+                right_left_dis = s["right_left_dis"]
                 left_right_dis_att = F.softmax(20 * (1 - left_right_dis), dim=-1)
+                right_left_dis_att = F.softmax(20 * (1 - right_left_dis), dim=-1)
 
-                pi, pi_move, v, _, player_att, _ = model(s)
+                pi, pi_move, v, _, player_att, opp_att = model(s)
                 pi_prime, pi_m_prime, v_prime, _, _, _= model(s_prime)
 
                 left_player_att = player_att[0]
                 left_right_att = player_att[1]
+                right_opp_att = opp_att[0]
+                right_left_att = opp_att[1]
 
-                dis_att_loss = F.smooth_l1_loss(left_right_att, left_right_dis_att)
+                dis_att_loss = F.smooth_l1_loss(left_right_att, left_right_dis_att) #+ F.smooth_l1_loss(right_left_att, right_left_dis_att)
+
                 player_att_log = - torch.log(left_player_att+1e-8)
-                att_entropy = torch.diagonal(torch.bmm(left_player_att, player_att_log.permute(0,2,1)), dim1=1, dim2=2)
+                player_att_entropy = torch.diagonal(torch.bmm(left_player_att, player_att_log.permute(0,2,1)), dim1=1, dim2=2)
+                opp_att_log = - torch.log(right_opp_att+1e-8)
+                opp_att_entropy = torch.diagonal(torch.bmm(right_opp_att, opp_att_log.permute(0,2,1)), dim1=1, dim2=2)
+
+                att_entropy = player_att_entropy + opp_att_entropy
 
                 pi_a = pi.gather(2,a)
                 pi_m = pi_move.gather(2,m)
@@ -88,7 +97,7 @@ class Algo():
                 surr_loss = -torch.min(surr1, surr2)
                 v_loss = F.smooth_l1_loss(v, td_target.detach())
                 entropy_loss = -1*self.entropy_coef*entropy
-                loss = surr_loss + v_loss + entropy_loss.mean() #+ dis_att_loss #+ self.attention_coef*att_entropy.mean()
+                loss = surr_loss + v_loss + entropy_loss.mean() + self.attention_coef*att_entropy.mean()
                 loss = loss.mean()
 
                 model.optimizer.zero_grad()
