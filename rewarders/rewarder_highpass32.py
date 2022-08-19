@@ -65,7 +65,7 @@ def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, 
             prev_right_team_closest_distance = np.min(prev_right_team_distance)
 
             if right_team_closest_distance - prev_right_team_closest_distance > 0.04:
-                safe_pass_reward = 2.0
+                safe_pass_reward = 3.0
                 good_pass_counts = 1
             else:
                 safe_pass_reward = 1.0
@@ -75,6 +75,6 @@ def calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, 
             #else:
             #    safe_pass_reward = -1.0
 
-    reward = 5.0*win_reward + 5.0*rew + 0.001 * ball_position_r + 0.3*yellow_r + 0.1*change_ball_owned_reward + 0.1*safe_pass_reward 
+    reward = 5.0*win_reward + 5.0*rew + 0.3*yellow_r + 0.3*change_ball_owned_reward + 0.3*safe_pass_reward 
         
     return reward, good_pass_counts

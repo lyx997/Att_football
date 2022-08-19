@@ -125,22 +125,22 @@ if __name__ == '__main__':
 
     arg_dict = {
         #"env": "11_vs_11_kaggle",    
-        "env": "11_vs_11_kaggle",    
+        "env": "11_vs_11_stochastic",    
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 40,  # should be less than the number of cpu cores in your workstation.
+        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
         "batch_size": 32,   
         "buffer_size": 6, #false 6  
         "rollout_len": 30,
 
         "lstm_size": 256,
-        "k_epoch" : 5,
+        "k_epoch" : 3,
         "learning_rate" : 0.0001,#0.0001
         "gamma" : 0.993,
         "lmbda" : 0.96,
         "entropy_coef" : 0.0001,
-        "attention_coef" : 0.0001,
+        "attention_coef" : 0.0,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
         "seed" : 0.1,
@@ -153,12 +153,12 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_gat_att_def_latest11",
-        "rewarder" : "rewarder_highpass26",
-        "model" : "team_opp_attention19",
+        "encoder" : "encoder_gat_att_def_latest12",
+        "rewarder" : "rewarder_highpass42",
+        "model" : "team_opp_attention25",
         #"model" : "gat_att_def6_latest12",
         "algorithm" : "ppo_with_lstm_att_loss",
-        "tmux": "football1",
+        "tmux": "football0",
         "get_score":False,
 
         "env_evaluation":'tensorboard/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

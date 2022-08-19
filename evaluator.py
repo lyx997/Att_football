@@ -90,7 +90,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
         done = False
         highpass = False
         active_idx = obs["active"]
-        steps, score, tot_reward, win = 0, 0, 0, 0
+        steps, score, tot_reward, win, tot_good_pass = 0, 0, 0, 0, 0
         n_epi += 1
         h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
                  torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
@@ -113,7 +113,7 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict, opp_num = fe1.encode(obs)
+            state_dict, opp_num = fe1.encode(obs, seed)
             opp_state_dict = fe2.encode(opp_obs)
             state_dict_tensor = state_to_tensor1(state_dict, h_in)
             opp_state_dict_tensor = state_to_tensor2(opp_state_dict, opp_h_in)
@@ -151,9 +151,9 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 prev_obs = []
 
             #fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass)
-            fin_r = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass, opp_most_att_idx, opp_most_att)
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass, opp_most_att_idx, opp_most_att)
 
-            state_prime_dict, _ = fe1.encode(obs)
+            state_prime_dict, _ = fe1.encode(obs, seed)
             
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
@@ -164,7 +164,8 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             steps += 1
             score += rew
             tot_reward += fin_r
-            
+            tot_good_pass += good_pass_counts 
+
             loop_t += time.time()-init_t
             
             if done:
@@ -174,6 +175,6 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
                     print("Evaluate with left", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
                 else:
                     print("Evaluate with right", arg_dict["env_evaluation"]," model: score",score,"total reward",tot_reward)
-                summary_data = (win, score, tot_reward, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)
+                summary_data = (win, score, tot_reward, tot_good_pass, steps, arg_dict['env_evaluation'], loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)
 

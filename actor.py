@@ -109,7 +109,7 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
     rollout = []
     
     while True: # episode loop
-        seed = 0.1
+        seed = arg_dict["seed"]
         if seed < 0.5:
             env_left.reset()   
             obs = env_left.observation()
@@ -122,10 +122,12 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
         prev_obs = [[]]
         prev_most_att_idx = []
         prev_most_att = 0.0
+        prev_opp_most_att_idx = []
+        prev_opp_most_att = 0.0
         highpass=False
         done = False
         get_score = False
-        steps, score, tot_reward, win= 0, 0, 0, 0
+        steps, score, tot_reward, tot_good_pass, win= 0, 0, 0, 0, 0
         n_epi += 1
         h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
                  torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
@@ -144,22 +146,16 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
             wait_t += time.time() - init_t
 
             h_in = h_out
-            state_dict = fe.encode(obs[0])
+            state_dict, _ = fe.encode(obs[0], seed)
             state_dict_tensor = state_to_tensor(state_dict, h_in)
 
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, player_att_idx, _ = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out, player_att_idx, opp_att_idx = model(state_dict_tensor)
 
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
 
-            if obs[0]["ball_owned_team"] != -1:
-                prev_obs = obs
-                active_idx = obs[0]["active"]
-                prev_most_att_idx, prev_most_att = find_most_att_idx(player_att_idx[0], active_idx)
-                highpass = False
-            
             if a == 3:
                 highpass=True
 
@@ -170,13 +166,22 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
 
             rew = rew[0]
             if rew != 0:
-                get_score = True
+                #get_score = True
                 prev_obs = [[]]
                 prev_most_att_idx = []
+                prev_opp_most_att_idx = []
 
-            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], prev_most_att_idx, prev_most_att, highpass)
-            #fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], None, a)
-            state_prime_dict = fe.encode(obs[0])
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, prev_obs[0], obs[0], prev_most_att_idx, prev_most_att, highpass, prev_opp_most_att_idx, prev_opp_most_att)
+            state_prime_dict, opp_num = fe.encode(obs[0], seed)
+
+            if obs[0]["ball_owned_team"] != -1:
+                if not prev_obs[0]:
+                    highpass = False
+                elif prev_obs[0]["active"] != obs[0]["active"]:
+                    highpass = False
+                prev_obs = obs
+                active_idx = obs[0]["active"]
+                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
 
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
@@ -193,6 +198,7 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
             steps += 1
             score += rew
             tot_reward += fin_r
+            tot_good_pass += good_pass_counts
 
             loop_t += time.time()-init_t
 
@@ -203,7 +209,7 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
                     print("model in left score",score,"total reward",tot_reward)
                 else:
                     print("model in right score",score,"total reward",tot_reward)
-                summary_data = (win, score, tot_reward, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
+                summary_data = (win, score, tot_reward, tot_good_pass, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)
 
 def off_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_dict):
@@ -697,7 +703,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
         done = False
         active_idx = obs["active"]
         opp_active = opp_obs["active"]
-        steps, score, tot_reward, win = 0, 0, 0, 0
+        steps, score, tot_reward, win, tot_good_pass = 0, 0, 0, 0, 0
         n_epi += 1
         h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
                  torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
@@ -718,15 +724,16 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict, opp_num = fe.encode(obs)
+            state_dict, _ = fe.encode(obs, seed)
             state_dict_tensor = state_to_tensor(state_dict, h_in)
-            opp_state_dict, _ = fe.encode(opp_obs)
+            opp_state_dict, _ = fe.encode(opp_obs, 1-seed)
             opp_state_dict_tensor = state_to_tensor(opp_state_dict, opp_h_in)
             
             t1 = time.time()
             with torch.no_grad():
                 a_prob, m_prob, _, h_out, player_att_idx, opp_att_idx = model(state_dict_tensor)
-                active_idx = obs["active"]
+                #active_idx = obs["active"]
+                #prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
                 #most_att_idx = find_most_att_idx(player_att_idx[2], active_idx)
                 opp_a_prob, opp_m_prob, _, opp_h_out, _, _ = opp_model(opp_state_dict_tensor)
             forward_t += time.time()-t1 
@@ -734,14 +741,6 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
             opp_real_action, _, _, _, _, _, _ = get_action(opp_a_prob, opp_m_prob)
 
-            if obs["ball_owned_team"] != -1:
-                if not prev_obs:
-                    highpass = False
-                elif prev_obs["active"] != obs["active"]:
-                    highpass = False
-                prev_obs = obs
-                #active_idx = obs["active"]
-                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
             
             if a == 3:
                 highpass = True
@@ -751,7 +750,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             else:
                 [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [[],[]])
 
-            opp_active = opp_obs["active"]
+            #opp_active = opp_obs["active"]
 
             if rew != 0:
                 get_score = True
@@ -759,9 +758,18 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                 prev_most_att_idx = []
                 prev_opp_most_att_idx = []
 
-            fin_r = rewarder.calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, prev_opp_most_att_idx, prev_opp_most_att)
-            state_prime_dict, _ = fe.encode(obs)
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, prev_obs, obs, prev_most_att_idx, prev_most_att, highpass, prev_opp_most_att_idx, prev_opp_most_att)
+            state_prime_dict, opp_num = fe.encode(obs, seed)
 
+            if obs["ball_owned_team"] != -1:
+                if not prev_obs:
+                    highpass = False
+                elif prev_obs["active"] != obs["active"]:
+                    highpass = False
+                prev_obs = obs
+                active_idx = obs["active"]
+                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
+            
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
             state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
@@ -777,6 +785,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             steps += 1
             score += rew
             tot_reward += fin_r
+            tot_good_pass += good_pass_counts
             
             loop_t += time.time()-init_t
 
@@ -787,6 +796,6 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                     print("left score {}, total reward {:.2f}, opp num:{}, right opp:{} ".format(score,tot_reward,opp_model_num, opp_model_path))
                 else:
                     print("right score {}, total reward {:.2f}, opp num:{}, left opp:{} ".format(score,tot_reward,opp_model_num, opp_model_path))
-                summary_data = (win, score, tot_reward, steps, str(opp_model_num), loop_t/steps, forward_t/steps, wait_t/steps)
+                summary_data = (win, score, tot_reward, tot_good_pass, steps, str(opp_model_num), loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)                
 

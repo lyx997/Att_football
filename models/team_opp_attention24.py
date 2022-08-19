@@ -16,8 +16,7 @@ class Model(nn.Module):
 
         self.arg_dict = arg_dict
 
-        self.fc_player_situation = nn.Linear(arg_dict['feature_dims']['player_situation'],64)
-        self.fc_match_situation = nn.Linear(arg_dict['feature_dims']['match_situation'],48)
+        self.fc_player_situation = nn.Linear(arg_dict['feature_dims']['player_situation'],48)
         self.fc_ball_situation = nn.Linear(arg_dict['feature_dims']['ball_situation'],48)
 
         self.fc_left_closest = nn.Linear(arg_dict["feature_dims"]["left_team_closest"],48)
@@ -48,9 +47,7 @@ class Model(nn.Module):
         
         self.fc_cat = nn.Linear(48*2+96*4,arg_dict["lstm_size"])
 
-        self.norm_player_situation = nn.LayerNorm(64)
-        self.norm_ball_situation = nn.LayerNorm(48)
-        self.norm_match_situation = nn.LayerNorm(48)
+        self.norm_situation = nn.LayerNorm(48)
         self.norm_state = nn.LayerNorm(48)
        
         self.norm_cat = nn.LayerNorm(arg_dict["lstm_size"])
@@ -73,7 +70,6 @@ class Model(nn.Module):
     def forward(self, state_dict):
 
         player_situation = state_dict["player_situation"]          
-        match_situation = state_dict["match_situation"]          
         ball_situation = state_dict["ball_situation"]              
         #match_situation = state_dict["match_situation"]              
 
@@ -84,9 +80,8 @@ class Model(nn.Module):
         right_team_state = state_dict["right_team_state"]  
         avail = state_dict["avail"]
         
-        #player_sit_embed = F.relu(self.norm_player_situation(self.fc_player_situation(player_situation)))
-        match_sit_embed = F.relu(self.norm_match_situation(self.fc_match_situation(match_situation)))
-        ball_sit_embed = F.relu(self.norm_ball_situation(self.fc_ball_situation(ball_situation)))
+        player_sit_embed = F.relu(self.norm_situation(self.fc_player_situation(player_situation)))
+        ball_sit_embed = F.relu(self.norm_situation(self.fc_ball_situation(ball_situation)))
 
         player_state_embed = F.relu(self.norm_state(self.fc_player_state(player_state)))
         opp_state_embed = F.relu(self.norm_state(self.fc_opp_state(opp_state)))
@@ -127,19 +122,20 @@ class Model(nn.Module):
 
         player_right_team_att_embed = torch.cat([player_v1, right_team_att_player_embed], dim=-1) #(1,1,96)
         left_team_right_team_att_embed = torch.cat([left_team_v1, right_team_att_left_embed], dim=-1) #(1,10,96)
-
+        all_left_team_right_team_att_embed = torch.cat([player_right_team_att_embed, left_team_right_team_att_embed], dim=1)
         # 2 layer attention ----- Left team embed to Player
 
         player_q2 = self.fc_q2_attack(player_right_team_att_embed) #(1,1,96)
         player_v2 = self.fc_v2_attack(player_right_team_att_embed)
-        left_team_k2 = self.fc_k2_attack(left_team_right_team_att_embed) #(1,10,96)
-        left_team_v2 = self.fc_v2_attack(left_team_right_team_att_embed)
+        all_left_team_k2 = self.fc_k2_attack(all_left_team_right_team_att_embed) #(1,10,96)
+        all_left_team_v2 = self.fc_v2_attack(all_left_team_right_team_att_embed)
 
-        left_team_att = torch.bmm(player_q2, left_team_k2.permute(0,2,1)) #* 100 #(1,1,10)
-        left_att_ = F.softmax(left_team_att, dim=-1)
-        left_att = F.gumbel_softmax(left_team_att, dim=-1, hard=True)
+        left_team_att = torch.bmm(player_q2, all_left_team_k2.permute(0,2,1)) #* 100 #(1,1,10)
+        left_att = F.softmax(left_team_att, dim=-1)
+        left_att_ = left_att[:,:,1:]
+        #left_att = F.gumbel_softmax(left_team_att, dim=-1, hard=True)
 
-        left_player_att_embed = torch.bmm(left_att, left_team_v2) #(1,1,96)
+        left_player_att_embed = torch.bmm(left_att, all_left_team_v2) #(1,1,96)
         
         ##---------------------------------------------------------------------------------
         player_right_att_embed = player_v2.view(horizon, batch, -1)
@@ -169,26 +165,26 @@ class Model(nn.Module):
 
         opp_left_team_att_embed = torch.cat([opp_v1, left_team_att_opp_embed], dim=-1) #(1,1,96)
         right_team_left_team_att_embed = torch.cat([right_team_v1, left_team_att_right_embed], dim=-1) #(1,10,96)
-
+        all_right_team_left_team_att_embed = torch.cat([opp_left_team_att_embed, right_team_left_team_att_embed], dim=1)
         # 2 layer attention ----- right team embed to opp
 
         opp_q2 = self.fc_q2_defence(opp_left_team_att_embed) #(1,1,96)
         opp_v2 = self.fc_v2_defence(opp_left_team_att_embed)
-        right_team_k2 = self.fc_k2_defence(right_team_left_team_att_embed) #(1,10,96)
-        right_team_v2 = self.fc_v2_defence(right_team_left_team_att_embed)
+        all_right_team_k2 = self.fc_k2_defence(all_right_team_left_team_att_embed) #(1,10,96)
+        all_right_team_v2 = self.fc_v2_defence(all_right_team_left_team_att_embed)
 
-        right_team_att = torch.bmm(opp_q2, right_team_k2.permute(0,2,1)) #* 100 #(1,1,10)
-        right_att_ = F.softmax(right_team_att, dim=-1)
-        right_att = F.gumbel_softmax(right_team_att, dim=-1, hard=True)
+        right_team_att = torch.bmm(opp_q2, all_right_team_k2.permute(0,2,1)) #* 100 #(1,1,10)
+        right_att = F.softmax(right_team_att, dim=-1)
+        right_att_ = right_att[:,:,1:]
+        #right_att = F.gumbel_softmax(right_team_att, dim=-1, hard=True)
 
-        right_opp_att_embed = torch.bmm(right_att, right_team_v2) #(1,1,96)
+        right_opp_att_embed = torch.bmm(right_att, all_right_team_v2) #(1,1,96)
         
         ##---------------------------------------------------------------------------------
         opp_left_att_embed = opp_v2.view(horizon, batch, -1)
         right_opp_att_embed = right_opp_att_embed.view(horizon, batch, -1)
-        #opp_state_embed = opp_state_embed.view(horizon, batch, -1)
 
-        cat = torch.cat([match_sit_embed, player_right_att_embed, ball_sit_embed, opp_left_att_embed, left_player_att_embed, right_opp_att_embed], -1)
+        cat = torch.cat([player_sit_embed, ball_sit_embed, player_right_att_embed, left_player_att_embed, opp_left_att_embed, right_opp_att_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]

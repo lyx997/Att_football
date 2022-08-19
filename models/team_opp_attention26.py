@@ -34,7 +34,7 @@ class Model(nn.Module):
         self.fc_k1_attack = nn.Linear(48, 48, bias=False)
 
         self.fc_q2_attack = nn.Linear(96, 96, bias=False)
-        self.fc_v2_attack = nn.Linear(96, 96, bias=False)
+        #self.fc_v2_attack = nn.Linear(96, 96, bias=False)
         self.fc_k2_attack = nn.Linear(96, 96, bias=False)
 
         self.fc_q1_defence = nn.Linear(48, 48, bias=False)
@@ -42,11 +42,11 @@ class Model(nn.Module):
         self.fc_k1_defence = nn.Linear(48, 48, bias=False)
 
         self.fc_q2_defence = nn.Linear(96, 96, bias=False)
-        self.fc_v2_defence = nn.Linear(96, 96, bias=False)
+        #self.fc_v2_defence = nn.Linear(96, 96, bias=False)
         self.fc_k2_defence = nn.Linear(96, 96, bias=False)
 
         
-        self.fc_cat = nn.Linear(48*2+96*4,arg_dict["lstm_size"])
+        self.fc_cat = nn.Linear(48*5+64,arg_dict["lstm_size"])
 
         self.norm_player_situation = nn.LayerNorm(64)
         self.norm_ball_situation = nn.LayerNorm(48)
@@ -84,7 +84,7 @@ class Model(nn.Module):
         right_team_state = state_dict["right_team_state"]  
         avail = state_dict["avail"]
         
-        #player_sit_embed = F.relu(self.norm_player_situation(self.fc_player_situation(player_situation)))
+        player_sit_embed = F.relu(self.norm_player_situation(self.fc_player_situation(player_situation)))
         match_sit_embed = F.relu(self.norm_match_situation(self.fc_match_situation(match_situation)))
         ball_sit_embed = F.relu(self.norm_ball_situation(self.fc_ball_situation(ball_situation)))
 
@@ -131,18 +131,18 @@ class Model(nn.Module):
         # 2 layer attention ----- Left team embed to Player
 
         player_q2 = self.fc_q2_attack(player_right_team_att_embed) #(1,1,96)
-        player_v2 = self.fc_v2_attack(player_right_team_att_embed)
+        #player_v2 = self.fc_v2_attack(player_right_team_att_embed)
         left_team_k2 = self.fc_k2_attack(left_team_right_team_att_embed) #(1,10,96)
-        left_team_v2 = self.fc_v2_attack(left_team_right_team_att_embed)
+        #left_team_v2 = self.fc_v2_attack(left_team_right_team_att_embed)
 
         left_team_att = torch.bmm(player_q2, left_team_k2.permute(0,2,1)) #* 100 #(1,1,10)
         left_att_ = F.softmax(left_team_att, dim=-1)
         left_att = F.gumbel_softmax(left_team_att, dim=-1, hard=True)
 
-        left_player_att_embed = torch.bmm(left_att, left_team_v2) #(1,1,96)
+        left_player_att_embed = torch.bmm(left_att, left_team_state_embed) #(1,1,96)
         
         ##---------------------------------------------------------------------------------
-        player_right_att_embed = player_v2.view(horizon, batch, -1)
+        #player_right_att_embed = player_v2.view(horizon, batch, -1)
         left_player_att_embed = left_player_att_embed.view(horizon, batch, -1)
  
         ##-defence_attention---------------------------------------------------------------------------
@@ -173,22 +173,22 @@ class Model(nn.Module):
         # 2 layer attention ----- right team embed to opp
 
         opp_q2 = self.fc_q2_defence(opp_left_team_att_embed) #(1,1,96)
-        opp_v2 = self.fc_v2_defence(opp_left_team_att_embed)
+        #opp_v2 = self.fc_v2_defence(opp_left_team_att_embed)
         right_team_k2 = self.fc_k2_defence(right_team_left_team_att_embed) #(1,10,96)
-        right_team_v2 = self.fc_v2_defence(right_team_left_team_att_embed)
+        #right_team_v2 = self.fc_v2_defence(right_team_left_team_att_embed)
 
         right_team_att = torch.bmm(opp_q2, right_team_k2.permute(0,2,1)) #* 100 #(1,1,10)
         right_att_ = F.softmax(right_team_att, dim=-1)
         right_att = F.gumbel_softmax(right_team_att, dim=-1, hard=True)
 
-        right_opp_att_embed = torch.bmm(right_att, right_team_v2) #(1,1,96)
+        right_opp_att_embed = torch.bmm(right_att, right_team_state_embed) #(1,1,96)
         
         ##---------------------------------------------------------------------------------
-        opp_left_att_embed = opp_v2.view(horizon, batch, -1)
+        #opp_left_att_embed = opp_v2.view(horizon, batch, -1)
         right_opp_att_embed = right_opp_att_embed.view(horizon, batch, -1)
-        #opp_state_embed = opp_state_embed.view(horizon, batch, -1)
+        opp_state_embed = opp_state_embed.view(horizon, batch, -1)
 
-        cat = torch.cat([match_sit_embed, player_right_att_embed, ball_sit_embed, opp_left_att_embed, left_player_att_embed, right_opp_att_embed], -1)
+        cat = torch.cat([match_sit_embed, player_sit_embed, ball_sit_embed, opp_state_embed, left_player_att_embed, right_opp_att_embed], -1)
 
         cat = F.relu(self.norm_cat(self.fc_cat(cat)))
         h_in = state_dict["hidden"]
