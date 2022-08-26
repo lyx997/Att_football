@@ -146,12 +146,14 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
             wait_t += time.time() - init_t
 
             h_in = h_out
-            state_dict, _ = fe.encode(obs[0], seed)
+            state_dict, opp_num = fe.encode(obs[0], seed)
             state_dict_tensor = state_to_tensor(state_dict, h_in)
 
             t1 = time.time()
             with torch.no_grad():
                 a_prob, m_prob, _, h_out, player_att_idx, opp_att_idx = model(state_dict_tensor)
+                active_idx = obs[0]["active"]
+                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
 
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, _, _ = get_action(a_prob, m_prob)
@@ -163,7 +165,6 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
                 obs, rew, done, info = env_left.att_step(real_action, [[], []])
             else:
                 obs, rew, done, info = env_right.att_step(real_action, [[], []])
-
             rew = rew[0]
             if rew != 0:
                 #get_score = True
@@ -180,8 +181,6 @@ def on_policy_actor(actor_num, center_model, data_queue, signal_queue, summary_q
                 elif prev_obs[0]["active"] != obs[0]["active"]:
                     highpass = False
                 prev_obs = obs
-                active_idx = obs[0]["active"]
-                prev_most_att_idx, prev_opp_most_att_idx, prev_most_att, prev_opp_most_att = find_most_att_idx(player_att_idx[0], opp_att_idx[0], active_idx, opp_num)
 
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out

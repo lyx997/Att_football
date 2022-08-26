@@ -129,14 +129,14 @@ if __name__ == '__main__':
         # "11_vs_11_selfplay" : environment used for self-play training
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
-        "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
-        "batch_size": 32,   
+        "num_processes": 50,  # should be less than the number of cpu cores in your workstation.
+        "batch_size": 48,   
         "buffer_size": 6, #false 6  
         "rollout_len": 30,
 
         "lstm_size": 256,
         "k_epoch" : 3,
-        "learning_rate" : 0.0001,#0.0001
+        "learning_rate" : 0.001,#0.0001
         "gamma" : 0.993,
         "lmbda" : 0.96,
         "entropy_coef" : 0.0001,
@@ -154,11 +154,11 @@ if __name__ == '__main__':
         "print_mode" : False,
 
         "encoder" : "encoder_gat_att_def_latest12",
-        "rewarder" : "rewarder_highpass42",
+        "rewarder" : "rewarder_highpass44",
         "model" : "team_opp_attention25",
         #"model" : "gat_att_def6_latest12",
         "algorithm" : "ppo_with_lstm_att_loss",
-        "tmux": "football0",
+        "tmux": "football3",
         "get_score":False,
 
         "env_evaluation":'tensorboard/selfplay/model_63620352_selfplay.tar'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)

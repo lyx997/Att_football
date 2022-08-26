@@ -6,7 +6,7 @@ from torch.distributions import Categorical
 import numpy as np
 import time, os
 import argparse
-import gfootball.env as footballenv
+import gfootball.env as football_env
 from models.conv1d import Model as PPO
 #from models.conv2d import Model as PPO_Conv2
 from models.gat_att3 import Model as Gat3
@@ -18,7 +18,7 @@ from models.team_opp_attention25 import Model as Team12
 from models.opp_attention import Model as Opp
 from encoders.encoder_basic import FeatureEncoder as FE, state_to_tensor as stt
 #from encoders.encoder_conv2 import FeatureEncoder as FE2, state_to_tensor as stt2
-from encoders.encoder_gat_att_def_latest11 import FeatureEncoder as FE3, state_to_tensor as stt3
+from encoders.encoder_gat_att_def_latest12 import FeatureEncoder as FE3, state_to_tensor as stt3
 
 if os.path.exists('log.txt'):
     os.remove('log.txt')
@@ -42,7 +42,7 @@ arg_dict = {
     #"left_model_path" : "tensorboard\with-pae\model_1500480_att3.tar",
     #"left_model_path" : "tensorboard\with-pae\model_10503360_att2.tar",
     #"left_model_path" : "tensorboard\with-pae\model_49215744_att_def6.tar",
-    "left_model_path" : "logs/[07-30]18.00.39_team_opp_attention19_rewarder_highpass27_self_play/model_112439880.tar",
+    "left_model_path" : "logs/[08-19]23.55.45_team_opp_attention25_rewarder_highpass45/model_3307392.tar",
     #"left_model_path" : "logs/[06-02]23.10.26_gat_att_def6_latest_reward1/model_41793408.tar",
     #"left_model_path" : "tensorboard\with-pae\model_14704704_selfplay_att_def6_latest.tar",
     #"left_model_path" : "tensorboard\with-pae\model_69022080_att_def6.tar",
@@ -59,6 +59,7 @@ left_model = Team12(arg_dict)
 #left_model = Gat9(arg_dict)
 #left_model = Gat3(arg_dict)
 cpu_device = torch.device('cpu')
+gpu_device = torch.device('cuda')
 left_checkpoint = torch.load(arg_dict["left_model_path"], map_location=cpu_device)
 left_model.load_state_dict(left_checkpoint['model_state_dict'])
 left_hidden = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
@@ -84,7 +85,7 @@ def agent(obs, args):
         time.sleep(0.01) 
 
     obs = obs[0]
-    state_dict, opp_num = left_fe.encode(obs)
+    state_dict, opp_num = left_fe.encode(obs, 0.1)
     state_dict_tensor = stt3(state_dict, left_hidden)
     with torch.no_grad():
         a_prob, m_prob, _, left_hidden, attack_att, defence_att = left_model(state_dict_tensor)
@@ -168,9 +169,12 @@ def agent_opp(obs, args):
 
 
 if args.opp:
-    env = footballenv.create_environment(env_name=args.scenario, logdir='dump', write_full_episode_dumps=True, write_video=True, render=args.render, representation='raw', number_of_left_players_agent_controls=1, number_of_right_players_agent_controls=1)
+    env = football_env.create_environment(env_name=args.scenario, logdir='dump', write_full_episode_dumps=True, write_video=True, render=args.render, representation='raw', number_of_left_players_agent_controls=1, number_of_right_players_agent_controls=1)
 else:
-    env = footballenv.create_environment(env_name=args.scenario, logdir='dump', write_full_episode_dumps=True, write_video=True, render=args.render, representation='raw', number_of_left_players_agent_controls=1, number_of_right_players_agent_controls=0)
+    env = football_env.create_environment(env_name=args.scenario, logdir='dump', write_full_episode_dumps=True, write_video=True, render=args.render, representation='raw', number_of_left_players_agent_controls=1, number_of_right_players_agent_controls=0)
+    env = football_env.create_environment(env_name="11_vs_11_stochastic", representation="raw", \
+                                          stacked=False, logdir="dump", write_goal_dumps=True, write_full_episode_dumps=False, \
+                                          render=False, write_video=True)
 obs = env.reset()
     
 episode = 0
@@ -259,7 +263,11 @@ while True:
             team_att_idx, opp_att_idx = split_att_def_idx(attack_att, defence_att, active_idx, opp_num)
             #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
 
-        obs = env.att_step(action, [team_att_idx, opp_att_idx, active_idx])
+        time1 = time.clock()
+        #obs = env.att_step(action, [team_att_idx, opp_att_idx, active_idx])
+        obs = env.att_step(action, [[],[],[]])
+        time2 = time.clock()
+        print(time2-time1)
         #obs = env.att_step(action, [[],[]])
         left_score = obs[1]
 

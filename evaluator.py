@@ -129,21 +129,14 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
             opp_real_action, opp_a, opp_m, opp_need_m, opp_prob, opp_prob_selected_a, opp_prob_selected_m = get_action(opp_a_prob, opp_m_prob)
 
-            if obs["ball_owned_team"] != -1:
-                if not prev_obs:
-                    highpass = False
-                elif prev_obs["active"] != obs["active"]:
-                    highpass = False
-                prev_obs = obs
+            
             
             if a == 3:
                 highpass = True
-
             if seed < 0.5:
                 [obs, opp_obs], [rew, _], done, info = env_left.att_step([real_action, opp_real_action], [player_most_att_idx, opp_most_att_idx])
             else:
                 [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [player_most_att_idx, opp_most_att_idx])
-
             opp_active = opp_obs["active"]
 
             if rew != 0:
@@ -154,7 +147,14 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             fin_r, good_pass_counts = rewarder.calc_reward(rew, prev_obs, obs, player_most_att_idx, player_most_att, highpass, opp_most_att_idx, opp_most_att)
 
             state_prime_dict, _ = fe1.encode(obs, seed)
-            
+
+            if obs["ball_owned_team"] != -1:
+                if not prev_obs:
+                    highpass = False
+                elif prev_obs["active"] != obs["active"]:
+                    highpass = False
+                prev_obs = obs
+                
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
             state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
