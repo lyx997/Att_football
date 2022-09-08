@@ -24,8 +24,8 @@ args = parser.parse_args()
 
 arg_dict = {
     "learning_rate" : 0.0002,
-    "off_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_3002880.tar",
-    "def_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/def/model_def_3002880.tar",
+    "off_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_3102976.tar",
+    "def_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/def/model_def_3102976.tar",
 
 }
 
@@ -104,7 +104,7 @@ while True:
                     left_att_idx, right_att_idx = model_off(state_dict_tensor)
                     most_att_idx = find_most_att_idx(left_att_idx)
 
-                [obs, opp_obs], [rew, _], done, info = env.att_step([19, 19], [[],[]])
+                [obs, opp_obs], [rew, _], done, info = env.att_step([19, 19], [most_att_idx,{"None":None}])
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"]
                 ball_owned_player = obs["ball_owned_player"]
@@ -191,7 +191,7 @@ while True:
                     right_att_idx, left_att_idx = model_def(state_dict_tensor)
                     most_att_idx = find_most_att_idx(right_att_idx)
 
-                [obs, opp_obs], [rew, _], done, info = env.att_step([19, 19], [[],[]])
+                [obs, opp_obs], [rew, _], done, info = env.att_step([19, 19], [{"None":None}, most_att_idx])
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"]
                 ball_owned_player = obs["ball_owned_player"]

@@ -269,27 +269,27 @@ class FeatureEncoder:
             
         
         # if too far, no shot
-        ball_x, ball_y, _ = obs['ball']
-        if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
-            avail[SHOT] = 0
-        elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
-            avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
+        #ball_x, ball_y, _ = obs['ball']
+        #if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
+        #    avail[SHOT] = 0
+        #elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
+        #    avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
             
             
-        if obs['game_mode'] == 2 and ball_x < -0.7:  # Our GoalKick 
-            avail = [1,0,0,0,0,0,0,0,0,0,0,0]
-            avail[LONG_PASS], avail[HIGH_PASS], avail[SHORT_PASS] = 1, 1, 1
-            return np.array(avail)
+        #if obs['game_mode'] == 2 and ball_x < -0.7:  # Our GoalKick 
+        #    avail = [1,0,0,0,0,0,0,0,0,0,0,0]
+        #    avail[LONG_PASS], avail[HIGH_PASS], avail[SHORT_PASS] = 1, 1, 1
+        #    return np.array(avail)
         
-        elif obs['game_mode'] == 4 and ball_x > 0.9:  # Our CornerKick
-            avail = [1,0,0,0,0,0,0,0,0,0,0,0]
-            avail[LONG_PASS], avail[HIGH_PASS], avail[SHORT_PASS] = 1, 1, 1
-            return np.array(avail)
+        #elif obs['game_mode'] == 4 and ball_x > 0.9:  # Our CornerKick
+        #    avail = [1,0,0,0,0,0,0,0,0,0,0,0]
+        #    avail[LONG_PASS], avail[HIGH_PASS], avail[SHORT_PASS] = 1, 1, 1
+        #    return np.array(avail)
         
-        elif obs['game_mode'] == 6 and ball_x > 0.6:  # Our PenaltyKick
-            avail = [1,0,0,0,0,0,0,0,0,0,0,0]
-            avail[SHOT] = 1
-            return np.array(avail)
+        #elif obs['game_mode'] == 6 and ball_x > 0.6:  # Our PenaltyKick
+        #    avail = [1,0,0,0,0,0,0,0,0,0,0,0]
+        #    avail[SHOT] = 1
+        #    return np.array(avail)
 
         return np.array(avail)
         

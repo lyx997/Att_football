@@ -1,15 +1,15 @@
 import numpy as np
 import torch
 
-def state_to_tensor(state_dict):
+def state_to_tensor(state_dict, h_in):
 
-    match_situation = torch.from_numpy(state_dict["match_situation"]).float().unsqueeze(0)
-    player_state = torch.from_numpy(state_dict["player_state"]).float().unsqueeze(0)
-    opp_state = torch.from_numpy(state_dict["opp_state"]).float().unsqueeze(0)
-    ball_state = torch.from_numpy(state_dict["ball_state"]).float().unsqueeze(0)
-    left_team_state = torch.from_numpy(state_dict["left_team_state"]).float().unsqueeze(0)
-    right_team_state = torch.from_numpy(state_dict["right_team_state"]).float().unsqueeze(0)
-    avail = torch.from_numpy(state_dict["avail"]).float().unsqueeze(0)
+    match_situation = torch.from_numpy(state_dict["match_situation"]).float().unsqueeze(0).unsqueeze(0)
+    player_state = torch.from_numpy(state_dict["player_state"]).float().unsqueeze(0).unsqueeze(0)
+    opp_state = torch.from_numpy(state_dict["opp_state"]).float().unsqueeze(0).unsqueeze(0)
+    ball_state = torch.from_numpy(state_dict["ball_state"]).float().unsqueeze(0).unsqueeze(0)
+    left_team_state = torch.from_numpy(state_dict["left_team_state"]).float().unsqueeze(0).unsqueeze(0)
+    right_team_state = torch.from_numpy(state_dict["right_team_state"]).float().unsqueeze(0).unsqueeze(0)
+    avail = torch.from_numpy(state_dict["avail"]).float().unsqueeze(0).unsqueeze(0)
 
     state_dict_tensor = {
 
@@ -20,6 +20,7 @@ def state_to_tensor(state_dict):
       "left_team_state" : left_team_state,
       "right_team_state" : right_team_state,
       "avail" : avail,
+      "hidden" : h_in,
     }
     return state_dict_tensor
 
@@ -84,14 +85,18 @@ class FeatureEncoder:
         player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, player_role_onehot[0], left_ball_owned_onehot[player_num], [player_tired]))#18
         opp_state = np.concatenate((obs['right_team'][opp_num], opp_direction*100, opp_role_onehot[0], right_ball_owned_onehot[opp_num], [opp_tired]))#18
 
+        left_pass_line = max(np.max(obs_right_team[1:,0]), obs['left_team'][player_num][0], 0)
+        obs_left_team = np.delete(obs['left_team'], player_num, axis=0)
+        left_team_over_pass_idx = np.where(obs_left_team[:,0] > left_pass_line)
         obs_left_team = np.array(obs['left_team'])
         obs_left_team_direction = np.array(obs['left_team_direction'])
         left_role = obs["left_team_roles"]
         left_role_onehot = self._encode_role_onehot(left_role)
         left_team_tired = np.array(obs['left_team_tired_factor']).reshape(-1,1)
         left_team_state = np.concatenate((obs_left_team, obs_left_team_direction*100, left_role_onehot, left_ball_owned_onehot, left_team_tired), axis=1) #18
+        if left_team_over_pass_idx[0].size:
+            left_team_state[left_team_over_pass_idx[0], :] = 0
 
-        obs_right_team = np.array(obs['right_team'])
         obs_right_team_direction = np.array(obs['right_team_direction'])
         right_role = obs["right_team_roles"]
         right_role_onehot = self._encode_role_onehot(right_role)
@@ -182,10 +187,10 @@ class FeatureEncoder:
             avail[RELEASE_MOVE] = 0
             
         
-        # if too far, no shot
-        #ball_x, ball_y, _ = obs['ball']
-        #if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
-        #    avail[SHOT] = 0
+        #if too far, no shot
+        ball_x, ball_y, _ = obs['ball']
+        if ball_x < 0.64: #or ball_y < -0.27 or 0.27 < ball_y:
+            avail[SHOT] = 0
         #elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
         #    avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
             

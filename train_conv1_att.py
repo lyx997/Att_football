@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 from actor import *
 from on_policy_learner import *
-from evaluator_with_hard import evaluator
+from evaluator_with_hard import *
 from datetime import datetime, timedelta
 
 
@@ -45,7 +45,7 @@ def copy_models(dir_src, dir_dst): # src: source, dst: destination
 def main(arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     cur_time = datetime.now()
-    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + '_conv1d_basic_def'
+    arg_dict["log_dir"] = "logs/" + cur_time.strftime("[%m-%d]%H.%M.%S") + '_conv1d_att_def'
     arg_dict["log_dir_dump"] = arg_dict["log_dir"] + '/dump'
     arg_dict["log_dir_dump_left"] = arg_dict["log_dir_dump"] + '/left'
     arg_dict["log_dir_dump_right"] = arg_dict["log_dir_dump"] + '/right'
@@ -58,11 +58,11 @@ def main(arg_dict):
     pp = pprint.PrettyPrinter(indent=4)
     torch.set_num_threads(1)
     
-    fe = importlib.import_module("encoders." + arg_dict["encoder"])
+    fe = importlib.import_module("sup_encoders." + arg_dict["encoder_rl"])
     fe = fe.FeatureEncoder()
     arg_dict["feature_dims"] = fe.get_feature_dims()
     
-    model = importlib.import_module("models." + arg_dict["model"])
+    model = importlib.import_module("sup_models." + arg_dict["rl_model"])
     cpu_device = torch.device('cpu')
     center_model = model.Model(arg_dict)
     
@@ -93,19 +93,19 @@ def main(arg_dict):
     #setup_seed(20)
     
     processes = [] 
-    p = mp.Process(target=learner, args=(center_model, data_queue, signal_queue, summary_queue, arg_dict))
+    p = mp.Process(target=sup_learner, args=(center_model, data_queue, signal_queue, summary_queue, arg_dict))
     p.start()
     processes.append(p)
     for rank in range(arg_dict["num_processes"]):
         if arg_dict["env"] == "11_vs_11_kaggle":
             p = mp.Process(target=actor_self, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         else:
-            p = mp.Process(target=actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=sup_rl_actor, args=(rank, center_model, data_queue, signal_queue, summary_queue, arg_dict))
         p.start()
         processes.append(p)
     for i in range(1):
         if "env_evaluation" in arg_dict:
-            p = mp.Process(target=evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
+            p = mp.Process(target=sup_evaluator, args=(center_model, signal_queue, summary_queue, arg_dict))
             p.start()
             processes.append(p)
         
@@ -135,18 +135,21 @@ if __name__ == '__main__':
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : None, # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder" : "encoder_basic",
-        "rewarder" : "rewarder_att",
-        "model" : "conv1d",
+        "encoder_rl" : "att_rl_encoder",
+        "encoder_rw" : "att_encoder",
+        "rewarder" : "rewarder_att2",
+        "rl_model" : "conv1d_att",
+        "rw_model" : "att_off2_rew",
+        "rew_model_off_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_3102976.tar",
         "algorithm" : "ppo_with_lstm",
-        "tmux": "football0",
+        "tmux": "football3",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }

@@ -28,8 +28,8 @@ class Algo():
         for mini_batch in data:
             s, a, m, r, s_prime, done_mask, prob, need_move = mini_batch
             with torch.no_grad():
-                pi, pi_move, v, _, _, _ = model(s)
-                pi_prime, pi_m_prime, v_prime, _, _, _= model(s_prime)
+                pi, pi_move, v, _ = model(s)
+                pi_prime, pi_m_prime, v_prime, _= model(s_prime)
 
             td_target = r + self.gamma * v_prime * done_mask
             delta = td_target - v                           # [horizon * batch_size * 1]
@@ -48,8 +48,8 @@ class Algo():
         for i in range(self.K_epoch):
             for mini_batch in data_with_adv:
                 s, a, m, r, s_prime, done_mask, prob, need_move, td_target, advantage = mini_batch
-                pi, pi_move, v, _, _, _ = model(s)
-                pi_prime, pi_m_prime, v_prime, _, _, _ = model(s_prime)
+                pi, pi_move, v, _ = model(s)
+                pi_prime, pi_m_prime, v_prime, _ = model(s_prime)
 
                 pi_a = pi.gather(2,a)
                 pi_m = pi_move.gather(2,m)
@@ -81,4 +81,4 @@ class Algo():
                     move_entropy_lst.append(0)
                 else:
                     move_entropy_lst.append((torch.sum(move_entropy)/n_need_move).item())
-        return np.mean(tot_loss_lst), np.mean(pi_loss_lst), np.mean(v_loss_lst), np.mean(entropy_lst), np.mean(move_entropy_lst), _, _
+        return np.mean(tot_loss_lst), np.mean(pi_loss_lst), np.mean(v_loss_lst), np.mean(entropy_lst), np.mean(move_entropy_lst)

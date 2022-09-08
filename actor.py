@@ -531,12 +531,147 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     summary_data = (win, score, tot_reward, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
                     summary_queue.put(summary_data)
 
+def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_dict):
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    print("Actor process {} started".format(actor_num))
+    fe_rl_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rl"])
+    fe_rw_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rw"])
+    rewarder = importlib.import_module("sup_rewarders." + arg_dict["rewarder"])
+    imported_rw_model = importlib.import_module("sup_models." + arg_dict["rw_model"])
+    imported_rl_model = importlib.import_module("sup_models." + arg_dict["rl_model"])
+    
+    fe_rl = fe_rl_module.FeatureEncoder()
+    fe_rw = fe_rw_module.FeatureEncoder()
+    rl_state_to_tensor = fe_rl_module.state_to_tensor
+    rw_state_to_tensor = fe_rw_module.state_to_tensor
+    
+    cpu_device = torch.device('cpu')
+    rw_checkpoint = torch.load(arg_dict["rew_model_off_path"], map_location=cpu_device)
+    rew_model = imported_rw_model.Model(arg_dict)
+    rew_model.load_state_dict(rw_checkpoint['model_state_dict'])
+
+    rl_model = imported_rl_model.Model(arg_dict)
+    rl_model.load_state_dict(center_model.state_dict())
+
+    env_left = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_left"], \
+                                          number_of_left_players_agent_controls=1,
+                                          number_of_right_players_agent_controls=0,
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False)
+    env_right = football_env.create_environment(env_name=arg_dict['env'], representation="raw", stacked=False, logdir=arg_dict["log_dir_dump_right"], \
+                                          number_of_left_players_agent_controls=0,
+                                          number_of_right_players_agent_controls=1,
+                                          write_goal_dumps=False, write_full_episode_dumps=False, render=False)
+    n_epi = 0
+    rollout = []
+    while True: # episode loop
+        #seed = random.random()
+        seed = 0.1
+        if seed < 0.5:
+            env_left.reset()   
+            obs = env_left.observation()
+            our_team = 0
+        else:
+            env_right.reset()   
+            obs = env_right.observation()
+            our_team = 1
+
+        prev_obs = [[]]
+        prev_ball_owned_team = None 
+        att_rew = 0
+
+        done = False
+        steps, score, tot_reward, tot_good_pass, win = 0, 0, 0, 0, 0
+        n_epi += 1
+        h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
+                 torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
+        
+        loop_t, forward_t, wait_t = 0.0, 0.0, 0.0
+        
+        while not done:  # step loop
+            init_t = time.time()
+            
+            is_stopped = False
+            while signal_queue.qsize() > 0:
+                time.sleep(0.02)
+                is_stopped = True
+            if is_stopped:
+                rl_model.load_state_dict(center_model.state_dict())
+            wait_t += time.time() - init_t
+
+            h_in = h_out
+            state_dict = fe_rl.encode(obs[0])
+            rl_state_dict_tensor = rl_state_to_tensor(state_dict, h_in)
+            rw_state_dict_tensor = rw_state_to_tensor(state_dict)
+            
+            t1 = time.time()
+            with torch.no_grad():
+                a_prob, m_prob, _, h_out = rl_model(rl_state_dict_tensor)
+
+                if prev_ball_owned_team == 0:
+                    left_att_idx, right_att_idx = rew_model(rw_state_dict_tensor)
+
+            forward_t += time.time()-t1 
+            real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
+
+
+            if our_team == 0:
+                obs, rew, done, info = env_left.att_step(real_action,[[],[],[]])
+            else:
+                obs, rew, done, info = env_right.att_step(real_action,[[],[],[]])
+
+            active = obs[0]["active"]
+
+            if prev_ball_owned_team == 0:
+                att_rew = float(left_att_idx[0,active])
+                if att_rew < 0.3:
+                    att_rew = 0
+            else:
+                att_rew = 0
+
+            rew=rew[0]
+            if rew != 0:
+                prev_obs = [[]]
+
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
+            state_prime_dict = fe_rl.encode(obs[0])
+
+            if obs[0]["ball_owned_team"] != -1:
+                prev_obs = obs
+                prev_ball_owned_team = obs[0]["ball_owned_team"]
+            
+            (h1_in, h2_in) = h_in
+            (h1_out, h2_out) = h_out
+            state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
+            state_prime_dict["hidden"] = (h1_out.numpy(), h2_out.numpy())
+            transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+            rollout.append(transition)
+            if len(rollout) == arg_dict["rollout_len"]:
+                data_queue.put(rollout)
+                rollout = []
+                #rl_model.load_state_dict(center_model.state_dict())
+
+            steps += 1
+            score += rew
+            tot_reward += fin_r
+            tot_good_pass += good_pass_counts
+            
+            loop_t += time.time()-init_t
+            
+            if done:
+                if score > 0:
+                    win = 1
+                if our_team == 0:
+                    print("model in left score",score,"total reward",tot_reward)
+                else:
+                    print("model in right score",score,"total reward",tot_reward)
+                summary_data = (win, score, tot_reward, tot_good_pass, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
+                summary_queue.put(summary_data)
             
 def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_dict):
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
     print("Actor process {} started".format(actor_num))
     fe_module = importlib.import_module("encoders." + arg_dict["encoder"])
-    rewarder = importlib.import_module("rewarders." + arg_dict["rewarder"])
+    rewarder = importlib.import_module("sup_rewarders." + arg_dict["rewarder"])
     imported_model = importlib.import_module("models." + arg_dict["model"])
     
     fe = fe_module.FeatureEncoder()
@@ -565,8 +700,12 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
             env_right.reset()   
             obs = env_right.observation()
             our_team = 1
+        
+
+        prev_obs = [[]]
+
         done = False
-        steps, score, tot_reward, win = 0, 0, 0, 0
+        steps, score, tot_reward, tot_good_pass, win = 0, 0, 0, 0, 0
         n_epi += 1
         h_out = (torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float), 
                  torch.zeros([1, 1, arg_dict["lstm_size"]], dtype=torch.float))
@@ -590,7 +729,7 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
             
             t1 = time.time()
             with torch.no_grad():
-                a_prob, m_prob, _, h_out, _ = model(state_dict_tensor)
+                a_prob, m_prob, _, h_out = model(state_dict_tensor)
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
 
@@ -602,8 +741,15 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
                 obs, rew, done, info = env_right.att_step(real_action,[[],[],[]])
 
             rew=rew[0]
-            fin_r = rewarder.calc_reward(rew, prev_obs[0], obs[0], False)
+            if rew != 0:
+                prev_obs = [[]]
+
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, 0, prev_obs[0], obs[0])
             state_prime_dict = fe.encode(obs[0])
+
+
+            if obs[0]["ball_owned_team"] != -1:
+                prev_obs = obs
             
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
@@ -619,6 +765,7 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
             steps += 1
             score += rew
             tot_reward += fin_r
+            tot_good_pass += good_pass_counts
             
             loop_t += time.time()-init_t
             
@@ -629,7 +776,7 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
                     print("model in left score",score,"total reward",tot_reward)
                 else:
                     print("model in right score",score,"total reward",tot_reward)
-                summary_data = (win, score, tot_reward, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
+                summary_data = (win, score, tot_reward, tot_good_pass, steps, 0, loop_t/steps, forward_t/steps, wait_t/steps)
                 summary_queue.put(summary_data)
 
 def select_opponent(arg_dict):
@@ -679,7 +826,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
     rollout = []
     while True: # episode loop
         #seed = random.random()
-        seed = arg_dict["seed"]
+        seed = 0.1
         opp_model_num, opp_model_path = select_opponent(arg_dict)
         checkpoint = torch.load(opp_model_path, map_location=cpu_device)
         opp_model.load_state_dict(checkpoint['model_state_dict'])
@@ -723,7 +870,7 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
             
             h_in = h_out
             opp_h_in = opp_h_out
-            state_dict, _ = fe.encode(obs, seed)
+            state_dict, _ = fe.encode(obs)
             state_dict_tensor = state_to_tensor(state_dict, h_in)
             opp_state_dict, _ = fe.encode(opp_obs, 1-seed)
             opp_state_dict_tensor = state_to_tensor(opp_state_dict, opp_h_in)

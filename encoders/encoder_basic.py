@@ -148,10 +148,10 @@ class FeatureEncoder:
         
         # if too far, no shot
         ball_x, ball_y, _ = obs['ball']
-        #if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
-        #    avail[SHOT] = 0
-        #elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
-        #    avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
+        if ball_x < 0.64 or ball_y < -0.27 or 0.27 < ball_y:
+            avail[SHOT] = 0
+        elif (0.64 <= ball_x and ball_x<=1.0) and (-0.27<=ball_y and ball_y<=0.27):
+            avail[HIGH_PASS], avail[LONG_PASS] = 0, 0
             
             
         if obs['game_mode'] == 2 and ball_x < -0.7:  # Our GoalKick 

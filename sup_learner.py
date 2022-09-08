@@ -169,16 +169,17 @@ def save_model(model, arg_dict, optimization_step, last_saved_step):
     else:
         return last_saved_step
        
-def get_data(queue, arg_dict, model):
+def get_data(queue, arg_dict, model, last_data):
     data = []
     for i in range(arg_dict["buffer_size"]):
-        mini_batch_np = []
         for j in range(arg_dict["batch_size"]):
             rollout = queue.get()
-            mini_batch_np.append(rollout)
-        mini_batch = model.make_batch(mini_batch_np)
-        data.append(mini_batch)
-    return data
+            data.append(rollout)
+    new_data = model.make_batch(data)
+    if last_data:
+        for key, _ in new_data.items():
+            new_data[key] = torch.cat([last_data[key], new_data[key]], dim=0)
+    return new_data
 
 def seperate_learner(i, center_model, queue, signal_queue, summary_queue, arg_dict, writer):
     print("Learner process started")
@@ -205,13 +206,13 @@ def seperate_learner(i, center_model, queue, signal_queue, summary_queue, arg_di
         optimization_step = arg_dict["optimization_step"]
     last_saved_step = optimization_step
     tot_loss_lst, att_loss_lst, att_entropy_lst = [], [], []
+    data = {}
     
     while True:
-        if queue.qsize() > arg_dict["batch_size"]*arg_dict["buffer_size"]:
             last_saved_step = seperate_save_model(i, model, arg_dict, optimization_step, last_saved_step)
             
+            data = get_data(queue, arg_dict, model, data)
             signal_queue.put(1)
-            data = get_data(queue, arg_dict, model)
             tot_loss, att_loss, att_entropy = algo.train(model, data)
             optimization_step += arg_dict["batch_size"]*arg_dict["buffer_size"]*arg_dict["k_epoch"]
 
@@ -225,8 +226,8 @@ def seperate_learner(i, center_model, queue, signal_queue, summary_queue, arg_di
             att_entropy_lst.append(att_entropy)
             center_model.load_state_dict(model.state_dict())
             
-            if queue.qsize() > arg_dict["batch_size"]*arg_dict["buffer_size"]:
-                print("warning. data remaining. queue size : ", queue.qsize())
+            #if queue.qsize() > arg_dict["batch_size"]*arg_dict["buffer_size"]:
+            #    print("warning. data remaining. queue size : ", queue.qsize())
             
             if summary_queue.qsize() >= arg_dict["summary_game_window"]:
                 seperate_write_summary(i, writer, arg_dict, summary_queue, optimization_step, tot_loss_lst, att_loss_lst, att_entropy_lst)
@@ -234,9 +235,6 @@ def seperate_learner(i, center_model, queue, signal_queue, summary_queue, arg_di
                 
             _ = signal_queue.get()             
             
-        else:
-            time.sleep(0.1)
-
 
 def learner(center_model, queue, signal_queue, summary_queue, arg_dict):
     print("Learner process started")

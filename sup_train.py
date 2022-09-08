@@ -136,23 +136,23 @@ if __name__ == '__main__':
         # "11_vs_11_stochastic" : environment used for training against fixed opponent(rule-based AI)
         # "11_vs_11_kaggle" : environment used for training against fixed opponent(rule-based AI hard)
         "num_processes": 30,  # should be less than the number of cpu cores in your workstation.
-        "batch_size": 32,   
-        "buffer_size": 6,
+        "batch_size": 128,   
+        "buffer_size": 1,
         "rollout_len": 30,
 
         "lstm_size": 256,
-        "k_epoch" : 1,
-        "learning_rate" : 0.0001,
+        "k_epoch" : 2,
+        "learning_rate" : 0.001,
         "gamma" : 0.99,
         "lmbda" : 0.96,
-        "entropy_coef" : 0.0001,
+        "entropy_coef" : 0.0,
         "attention_coef" : 0.01,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
 
-        "summary_game_window" : 5, 
+        "summary_game_window" : 10, 
         "summary_eval_window" : 3, 
-        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 100000,  # number of gradient updates bewteen saving model
 
         "trained_model_path" : '', # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
@@ -162,12 +162,12 @@ if __name__ == '__main__':
         "encoder_off" : "att_encoder",
         "encoder_def" : "att_encoder",
         "rewarder" : "",
-        "model_off" : "att_off",
-        "model_def" : "att_def",
+        "model_off" : "att_off2",
+        "model_def" : "att_def2",
         "algorithm" : "supervised_lr",
 
         "env_evaluation":'',  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
-        "tmux":"football2"
+        "tmux":"football1"
     }
     
     main(arg_dict)

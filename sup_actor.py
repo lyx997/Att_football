@@ -340,6 +340,17 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
         env.reset()
         [obs, opp_obs] = env.observation()
         ball_owned_team = obs["ball_owned_team"] #-1
+        active = [obs["active"], opp_obs["active"]]
+        ball_owned_team = None
+        ball_owned_player = None
+        prev_obs = {}
+        #prev_active = []
+        prev_orient = None
+        prev_ball_owned_team = None
+        prev_ball_owned_player = None
+        first_dribble = None
+        pass_or_not = False
+        labeled = False
 
         while not done:
 
@@ -355,6 +366,10 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 if is_stopped:
                     model_off.load_state_dict(center_model[0].state_dict())
 
+                if ball_owned_team != -1:
+                    prev_ball_owned_team = ball_owned_team
+                    prev_ball_owned_player = ball_owned_player
+               
                 state_dict = fe_off.encode(obs)
                 state_dict_tensor = off_state_to_tensor(state_dict)
 
@@ -363,21 +378,88 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     most_att_idx = find_most_att_idx(left_att_idx)
                 
                 [obs, opp_obs], [rew, _], done, info = env.att_step([19,19], [[],[],[]])
-                active = obs["active"]
+                active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"] #-1
-                state_dict["label_left_att"][:,active] = 1.0
-                          
-                off_steps += 1
-                if active == most_att_idx:
-                    off_acc += 1
+                ball_owned_player = obs["ball_owned_player"]
 
-                transition = (state_dict) #change to model defence
+                left_active_x, left_active_y = obs["left_team"][active[0]]
+                right_active_x, right_active_y = obs["right_team"][active[1]]
+                ball_x, ball_y, ball_z = obs["ball"]
+                dis_left_to_ball = np.linalg.norm([ball_x-left_active_x, ball_y-left_active_y])
+                dis_right_to_ball = np.linalg.norm([ball_x-right_active_x, ball_y-right_active_y])
+                dis_to_ball = [dis_left_to_ball, dis_right_to_ball]
 
-                data_queue[0].put(transition)
-                #rollout_off.append(transition)
+                if dis_to_ball[0] < 0.02 and dis_to_ball[0] < dis_to_ball[1]:
+                    ball_owned_team = 0
+                    ball_owned_player = active[0]
+                elif dis_to_ball[1] < 0.02 and dis_to_ball[1] < dis_to_ball[0]:
+                    ball_owned_team = 1
+                    ball_owned_player = active[1]
+            
+                if ball_owned_team != -1:
+                    prev_obs = obs
+
+                if rew != 0:
+                    prev_obs = {}
+                    #prev_active = []
+                    prev_ball_owned_team = None
+                    prev_ball_owned_player = None
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+
+                elif not prev_obs:
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                elif prev_ball_owned_team == ball_owned_team and prev_ball_owned_player == ball_owned_player: #dribble
+                    if first_dribble == None:
+                        first_dribble = len(rollout_off)
+                    pass_or_not = False
+                    labeled = False
+                    #state_dict["label_left_att"][0,active[0]] = 1.0
+                    
+                elif prev_ball_owned_team != ball_owned_team and ball_owned_team != -1 and prev_ball_owned_team != None: #steal
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                elif prev_ball_owned_team == ball_owned_team or (prev_ball_owned_team == None and ball_owned_team != -1): #catch
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                elif prev_ball_owned_player == active[prev_ball_owned_team]: #stop
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                else:
+                    if not pass_or_not: #pass
+                        labeled = True
+                        state_dict["label_left_att"][0,active[0]] = 1.0
+                        #if first_dribble:
+                            #pass_len = len(rollout_off) - first_dribble
+                            #if pass_len > 10:
+                            #    pass_len = 10
+                            #for i in range(pass_len):
+                            #    rollout_off[-(i+1)]["label_left_att"][0, active[0]] = 1.0
+                            #    rollout_off[-(i+1)]["label_left_att"][0, prev_ball_owned_player] = 0.0
+
+                        pass_or_not = True
+                        first_dribble = None
+                        off_steps += 1
+                        if active[0] == most_att_idx:
+                            off_acc += 1
+                    else:
+                        first_dribble = None
+                        labeled = False
+
+                if labeled:
+                    transition = (state_dict) #change to model defence
+                    #data_queue[0].put(transition)
+                    rollout_off.append(transition)
                 #if len(rollout_off) == arg_dict["rollout_len"]:
-                #    data_queue[0].put(rollout_off)
-                #    rollout_off = []
+                    data_queue[0].put(rollout_off)
+                    rollout_off = []
+                    first_dribble = None
 
                 if done:
                     print("offence model total right", off_acc, "in", off_steps, "accuracy:", off_acc/off_steps)  
@@ -397,6 +479,10 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 if is_stopped:
                     model_def.load_state_dict(center_model[1].state_dict())
 
+                if ball_owned_team != -1:
+                    prev_ball_owned_team = ball_owned_team
+                    prev_ball_owned_player = ball_owned_player
+
                 state_dict = fe_def.encode(obs)
                 state_dict_tensor = def_state_to_tensor(state_dict)
 
@@ -405,21 +491,87 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     most_att_idx = find_most_att_idx(right_att_idx)
                 
                 [obs, opp_obs], [rew, _], done, info = env.att_step([19,19], [[],[],[]])
-                active = opp_obs["active"]
+                active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"] #-1
-                state_dict["label_right_att"][:,active] = 1.0
-                            
-                def_steps += 1
-                if active == most_att_idx:
-                    def_acc += 1
+                ball_owned_player = obs["ball_owned_player"]
 
-                transition = (state_dict) #change to model defence
+                left_active_x, left_active_y = obs["left_team"][active[0]]
+                right_active_x, right_active_y = obs["right_team"][active[1]]
+                ball_x, ball_y, ball_z = obs["ball"]
+                dis_left_to_ball = np.linalg.norm([ball_x-left_active_x, ball_y-left_active_y])
+                dis_right_to_ball = np.linalg.norm([ball_x-right_active_x, ball_y-right_active_y])
+                dis_to_ball = [dis_left_to_ball, dis_right_to_ball]
 
-                data_queue[1].put(transition)
-                #rollout_def.append(transition)
+                if dis_to_ball[0] < 0.02 and dis_to_ball[0] < dis_to_ball[1]:
+                    ball_owned_team = 0
+                    ball_owned_player = active[0]
+                elif dis_to_ball[1] < 0.02 and dis_to_ball[1] < dis_to_ball[0]:
+                    ball_owned_team = 1
+                    ball_owned_player = active[1]
+            
+                if ball_owned_team != -1:
+                    prev_obs = obs
+
+                if rew != 0:
+                    prev_obs = {}
+                    prev_ball_owned_team = None
+                    prev_ball_owned_player = None
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+
+                elif not prev_obs:
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                elif prev_ball_owned_team == ball_owned_team and prev_ball_owned_player == ball_owned_player:
+                    if first_dribble == None:
+                        first_dribble = len(rollout_def)
+                    pass_or_not = False
+                    labeled = False
+                    #state_dict["label_right_att"][0, active[1]] = 1.0
+
+                elif prev_ball_owned_team != ball_owned_team and ball_owned_team != -1 and prev_ball_owned_team != None:
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                elif prev_ball_owned_team == ball_owned_team or (prev_ball_owned_team == None and ball_owned_team != -1):
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                elif prev_ball_owned_player == active[prev_ball_owned_team]:
+                    pass_or_not = False
+                    first_dribble = None
+                    labeled = False
+                else:
+                    if not pass_or_not:
+                        labeled = True
+                        state_dict["label_right_att"][0,active[1]] = 1.0
+                        #if first_dribble:
+                            #pass_len = len(rollout_def) - first_dribble
+                            #if pass_len > 10:
+                            #    pass_len = 10
+                            #for i in range(pass_len):
+                            #    rollout_def[-(i+1)]["label_right_att"][0, active[1]] = 1.0
+                            #    rollout_def[-(i+1)]["label_right_att"][0, prev_ball_owned_player] = 0.0
+
+                        pass_or_not = True
+                        first_dribble = None
+                        def_steps += 1
+                        if active[1] == most_att_idx:
+                            def_acc += 1
+                    else:
+                        first_dribble = None
+                        labeled = False
+
+                if labeled:
+                    transition = (state_dict) #change to model defence
+                    #data_queue[1].put(transition)
+                    rollout_def.append(transition)
                 #if len(rollout_def) == arg_dict["rollout_len"]:
-                #    data_queue[1].put(rollout_def)
-                #    rollout_def = []
+                    data_queue[1].put(rollout_def)
+                    rollout_def = []
+                    first_dribble = None
 
                 if done:
                     print("defence model total right", def_acc, "in", def_steps, "accuracy:", def_acc/def_steps)  

@@ -6,6 +6,13 @@ from torch.distributions import Categorical
 import torch.multiprocessing as mp 
 import numpy as np
 
+def shuffle(data, batch_size):
+    batch = {}
+    shuffle_index = torch.randint(0, data["left_team_state"].shape[0], (batch_size,))
+    for key, value in data.items():
+        batch[key] = value[shuffle_index, :].cuda()
+    return batch
+
 
 class Algo():
     def __init__(self, arg_dict, device=None):
@@ -13,15 +20,15 @@ class Algo():
         self.entropy_coef = arg_dict["entropy_coef"]
         self.attention_coef = arg_dict["attention_coef"]
         self.grad_clip = arg_dict["grad_clip"]
+        self.batch_size = arg_dict["batch_size"]
 
     def train(self, model, data):
         tot_loss_lst = []
         att_entropy_lst = []
         att_loss_lst = []
 
+        s = shuffle(data, self.batch_size)
         for i in range(self.K_epoch):
-            for mini_batch in data:
-                s = mini_batch
 
                 player_att, _ = model(s)
 
@@ -30,7 +37,7 @@ class Algo():
                 player_att_entropy = torch.diagonal(torch.bmm(player_att, player_att_log.permute(0,2,1)), dim1=1, dim2=2)
 
                 
-                att_loss = F.smooth_l1_loss(player_att, label_player_att)
+                att_loss = F.mse_loss(player_att, label_player_att)
                 att_entropy_loss = -1*self.entropy_coef*player_att_entropy
                 loss = att_loss + att_entropy_loss.mean() 
                 #loss = loss.mean()
