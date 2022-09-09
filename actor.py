@@ -537,7 +537,8 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
     fe_rl_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rl"])
     fe_rw_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rw"])
     rewarder = importlib.import_module("sup_rewarders." + arg_dict["rewarder"])
-    imported_rw_model = importlib.import_module("sup_models." + arg_dict["rw_model"])
+    imported_rw_off_model = importlib.import_module("sup_models." + arg_dict["rw_off_model"])
+    imported_rw_def_model = importlib.import_module("sup_models." + arg_dict["rw_def_model"])
     imported_rl_model = importlib.import_module("sup_models." + arg_dict["rl_model"])
     
     fe_rl = fe_rl_module.FeatureEncoder()
@@ -546,9 +547,13 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
     rw_state_to_tensor = fe_rw_module.state_to_tensor
     
     cpu_device = torch.device('cpu')
-    rw_checkpoint = torch.load(arg_dict["rew_model_off_path"], map_location=cpu_device)
-    rew_model = imported_rw_model.Model(arg_dict)
-    rew_model.load_state_dict(rw_checkpoint['model_state_dict'])
+    rw_off_checkpoint = torch.load(arg_dict["rew_model_off_path"], map_location=cpu_device)
+    rew_off_model = imported_rw_off_model.Model(arg_dict)
+    rew_off_model.load_state_dict(rw_off_checkpoint['model_state_dict'])
+
+    rw_def_checkpoint = torch.load(arg_dict["rew_model_def_path"], map_location=cpu_device)
+    rew_def_model = imported_rw_def_model.Model(arg_dict)
+    rew_def_model.load_state_dict(rw_def_checkpoint['model_state_dict'])
 
     rl_model = imported_rl_model.Model(arg_dict)
     rl_model.load_state_dict(center_model.state_dict())
@@ -599,7 +604,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
             wait_t += time.time() - init_t
 
             h_in = h_out
-            state_dict = fe_rl.encode(obs[0])
+            state_dict, opp_num = fe_rl.encode(obs[0])
             rl_state_dict_tensor = rl_state_to_tensor(state_dict, h_in)
             rw_state_dict_tensor = rw_state_to_tensor(state_dict)
             
@@ -608,7 +613,9 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
                 a_prob, m_prob, _, h_out = rl_model(rl_state_dict_tensor)
 
                 if prev_ball_owned_team == 0:
-                    left_att_idx, right_att_idx = rew_model(rw_state_dict_tensor)
+                    left_att_idx, _ = rew_off_model(rw_state_dict_tensor)
+                elif prev_ball_owned_team == 1:
+                    right_att_idx, _ = rew_def_model(rw_state_dict_tensor)
 
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -625,6 +632,10 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
                 att_rew = float(left_att_idx[0,active])
                 if att_rew < 0.3:
                     att_rew = 0
+            elif prev_ball_owned_team == 1:
+                att_rew = -0.1*float(right_att_idx[0,opp_num])
+                #if att_rew > -0.15:
+                #    att_rew = 0
             else:
                 att_rew = 0
 
@@ -633,7 +644,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
                 prev_obs = [[]]
 
             fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
-            state_prime_dict = fe_rl.encode(obs[0])
+            state_prime_dict, _ = fe_rl.encode(obs[0])
 
             if obs[0]["ball_owned_team"] != -1:
                 prev_obs = obs
@@ -648,7 +659,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
             if len(rollout) == arg_dict["rollout_len"]:
                 data_queue.put(rollout)
                 rollout = []
-                #rl_model.load_state_dict(center_model.state_dict())
+                rl_model.load_state_dict(center_model.state_dict())
 
             steps += 1
             score += rew

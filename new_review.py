@@ -8,7 +8,7 @@ import time, os
 import argparse
 import gfootball.env as footballenv
 from sup_models.att_off2 import Model as Offence
-from sup_models.att_def2 import Model as Defence
+from sup_models.att_def import Model as Defence
 
 from sup_encoders.att_encoder import FeatureEncoder as FE, state_to_tensor as stt
 from datetime import datetime, timedelta
@@ -25,7 +25,7 @@ args = parser.parse_args()
 arg_dict = {
     "learning_rate" : 0.0002,
     "off_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_3102976.tar",
-    "def_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/def/model_def_3102976.tar",
+    "def_model_path" : "logs/[08-31]23.15.37_gat_conv_seperate_/def/model_def_117337536.tar",
 
 }
 
@@ -98,7 +98,7 @@ while True:
                 #    active_idx = [obs[0]["active"]]
                 #    team_att_idx, opp_att_idx = split_att_def_idx(attack_att, defence_att, active_idx, opp_num)
                 #    #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
-                state_dict = fe_off.encode(obs)
+                state_dict, opp_num = fe_off.encode(obs)
                 state_dict_tensor = stt(state_dict)
                 with torch.no_grad():
                     left_att_idx, right_att_idx = model_off(state_dict_tensor)
@@ -185,7 +185,7 @@ while True:
                 #    active_idx = [obs[0]["active"]]
                 #    team_att_idx, opp_att_idx = split_att_def_idx(attack_att, defence_att, active_idx, opp_num)
                 #    #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
-                state_dict = fe_def.encode(obs)
+                state_dict, opp_num = fe_def.encode(obs)
                 state_dict_tensor = stt(state_dict)
                 with torch.no_grad():
                     right_att_idx, left_att_idx = model_def(state_dict_tensor)
@@ -224,25 +224,25 @@ while True:
                     pass_or_not = False
 
                 elif not prev_obs:
-                    state_dict = {state_list[0]: active, "most_att":{1: most_att_idx}} #争球
+                    state_dict = {state_list[0]: active, "most_att":{1: most_att_idx}, "opp_num": opp_num} #争球
                 elif prev_ball_owned_team == ball_owned_team and prev_ball_owned_player == ball_owned_player:
-                    state_dict = {state_list[2]: {ball_owned_team: ball_owned_player}, "most_att":{1: most_att_idx}} #带球
+                    state_dict = {state_list[2]: {ball_owned_team: ball_owned_player}, "most_att":{1: most_att_idx}, "opp_num": opp_num} #带球
                     pass_or_not = False
                 elif prev_ball_owned_team != ball_owned_team and ball_owned_team != -1 and prev_ball_owned_team != None:
-                    state_dict = {state_list[4]: [{ball_owned_team: ball_owned_player}, {prev_ball_owned_team: prev_ball_owned_player}], "most_att":{1: most_att_idx}} #断球
+                    state_dict = {state_list[4]: [{ball_owned_team: ball_owned_player}, {prev_ball_owned_team: prev_ball_owned_player}], "most_att":{1: most_att_idx}, "opp_num": opp_num} #断球
                     pass_or_not = False
                 elif prev_ball_owned_team == ball_owned_team or (prev_ball_owned_team == None and ball_owned_team != -1):
-                    state_dict = {state_list[3]: [{ball_owned_team: ball_owned_player}, {prev_ball_owned_team: prev_ball_owned_player}], "most_att":{1: most_att_idx}} #接传球
+                    state_dict = {state_list[3]: [{ball_owned_team: ball_owned_player}, {prev_ball_owned_team: prev_ball_owned_player}], "most_att":{1: most_att_idx}, "opp_num": opp_num} #接传球
                     pass_or_not = False
                 elif prev_ball_owned_player == active[prev_ball_owned_team]:
-                    state_dict = {state_list[5]: [{prev_ball_owned_team: prev_ball_owned_player}], "most_att":{1: most_att_idx}} #停球
+                    state_dict = {state_list[5]: [{prev_ball_owned_team: prev_ball_owned_player}], "most_att":{1: most_att_idx}, "opp_num": opp_num} #停球
                     pass_or_not = False
                 else:
                     if not pass_or_not:
-                        state_dict = {state_list[1]: [{prev_ball_owned_team: prev_ball_owned_player}, {prev_ball_owned_team: active[prev_ball_owned_team]}], "most_att":{1: most_att_idx}} #传球
+                        state_dict = {state_list[1]: [{prev_ball_owned_team: prev_ball_owned_player}, {prev_ball_owned_team: active[prev_ball_owned_team]}], "most_att":{1: most_att_idx}, "opp_num": opp_num} #传球
                         pass_or_not = True
                     else:
-                        state_dict = {state_list[7]: [{prev_ball_owned_team: prev_ball_owned_player}, {prev_ball_owned_team: active[prev_ball_owned_team]}], "most_att":{1: most_att_idx}} #球飞在空中
+                        state_dict = {state_list[7]: [{prev_ball_owned_team: prev_ball_owned_player}, {prev_ball_owned_team: active[prev_ball_owned_team]}], "most_att":{1: most_att_idx}, "opp_num": opp_num} #球飞在空中
             
 
                 left_score += init_left_score

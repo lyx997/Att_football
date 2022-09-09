@@ -144,12 +144,15 @@ if __name__ == '__main__':
 
         "encoder_rl" : "att_rl_encoder",
         "encoder_rw" : "att_encoder",
-        "rewarder" : "rewarder_att2",
+        "rewarder" : "rewarder_att7",
         "rl_model" : "conv1d_att",
-        "rw_model" : "att_off2_rew",
+        "rw_off_model" : "att_off2_rew",
         "rew_model_off_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_3102976.tar",
+        #"rew_model_off_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_5204992.tar",
+        "rw_def_model" : "att_def_rew",
+        "rew_model_def_path" : "logs/[08-31]23.15.37_gat_conv_seperate_/def/model_def_117337536.tar",
         "algorithm" : "ppo_with_lstm",
-        "tmux": "football3",
+        "tmux": "football0",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }

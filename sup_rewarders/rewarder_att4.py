@@ -10,7 +10,7 @@ def calc_reward(rew, att_rew, prev_obs, obs):
     if   (-END_X <= ball_x and ball_x < -PENALTY_X)and (-PENALTY_Y < ball_y and ball_y < PENALTY_Y):
         ball_position_r = -2.0
     elif (-PENALTY_X <= ball_x and ball_x < -MIDDLE_X) and (-END_Y < ball_y and ball_y < END_Y):
-        ball_position_r = -1.0
+        ball_position_r = -2.0
     elif (-MIDDLE_X <= ball_x and ball_x <= MIDDLE_X) and (-END_Y < ball_y and ball_y < END_Y):
         ball_position_r = 0.0
     elif (PENALTY_X < ball_x  and ball_x <= END_X) and (-PENALTY_Y < ball_y and ball_y < PENALTY_Y):
@@ -64,12 +64,12 @@ def calc_reward(rew, att_rew, prev_obs, obs):
         owned_ball_team = obs["ball_owned_team"]
         owned_ball_player = obs["ball_owned_player"]
         active_pos_x = obs['left_team'][active][0]
-        if owned_ball_team == 0 and prev_owned_ball_team == 1 :
-            change_ball_owned_reward = 3.0
+        if owned_ball_team == 0 and prev_owned_ball_team == 1 and owned_ball_player != 0 :
+            change_ball_owned_reward = 1.0
         elif owned_ball_team == 1 and prev_owned_ball_team == 0 :
-            change_ball_owned_reward = -3.0
+            change_ball_owned_reward = 0.0
         elif owned_ball_team == 1 and prev_owned_ball_team == 1 and prev_owned_ball_player != owned_ball_player:
-            change_ball_owned_reward = -1.0
+            change_ball_owned_reward = 0.0
         elif owned_ball_team == 0 and prev_owned_ball_team == 0 and ball_x - prev_ball_x > -0.1 and prev_ball_x < prev_max_right_team_x and \
             owned_ball_player != 0 and prev_owned_ball_player != owned_ball_player :
             good_pass_counts = 1
@@ -97,6 +97,6 @@ def calc_reward(rew, att_rew, prev_obs, obs):
             #else:
             #    safe_pass_reward = -1.0
 
-    reward = 5.0*win_reward + 5.0*rew + 0.1*yellow_r + 0.001*ball_position_r + 0.1*att_rew #0.1*change_ball_owned_reward + 10*tired_reward 
+    reward = 5.0*win_reward + 5.0*rew + 0.1*yellow_r + 0.1*att_rew + 0.5*change_ball_owned_reward + 0.01*ball_position_r
         
     return reward, good_pass_counts

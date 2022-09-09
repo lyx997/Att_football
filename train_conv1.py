@@ -135,18 +135,18 @@ if __name__ == '__main__':
         "eps_clip" : 0.1,
 
         "summary_game_window" : 10, 
-        "model_save_interval" : 600000,  # number of gradient updates bewteen saving model
+        "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
-        "trained_model_path" : None, # use when you want to continue traning from given model.
+        "trained_model_path" : "logs/[09-08]10.50.10_conv1d_basic_def/model_1200384.tar", # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
         "encoder" : "encoder_basic",
-        "rewarder" : "rewarder_att",
+        "rewarder" : "rewarder_att7_3",
         "model" : "conv1d",
         "algorithm" : "ppo_with_lstm",
-        "tmux": "football0",
+        "tmux": "football2",
 
         "env_evaluation":'11_vs_11_competition'  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
     }

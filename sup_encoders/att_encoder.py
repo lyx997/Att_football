@@ -129,7 +129,7 @@ class FeatureEncoder:
                       'match_situation':match_situation,
                       }
 
-        return state_dict
+        return state_dict, opp_num
 
     def _get_score(self, score):
         left_score = score[0]

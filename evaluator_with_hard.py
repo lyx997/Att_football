@@ -40,7 +40,7 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
     fe_rl_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rl"])
     fe_rw_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rw"])
     rewarder = importlib.import_module("sup_rewarders." + arg_dict["rewarder"])
-    imported_rw_model = importlib.import_module("sup_models." + arg_dict["rw_model"])
+    imported_rw_model = importlib.import_module("sup_models." + arg_dict["rw_off_model"])
     imported_rl_model = importlib.import_module("sup_models." + arg_dict["rl_model"])
     
     fe_rl = fe_rl_module.FeatureEncoder()
@@ -102,7 +102,7 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             wait_t += time.time() - init_t
 
             h_in = h_out
-            state_dict = fe_rl.encode(obs[0])
+            state_dict, opp_num = fe_rl.encode(obs[0])
             rl_state_dict_tensor = rl_state_to_tensor(state_dict, h_in)
             rw_state_dict_tensor = rw_state_to_tensor(state_dict)
             
@@ -134,7 +134,7 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 prev_obs = [[]]
 
             fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
-            state_prime_dict = fe_rl.encode(obs[0])
+            state_prime_dict, opp_num = fe_rl.encode(obs[0])
 
             if obs[0]["ball_owned_team"] != -1:
                 prev_obs = obs
