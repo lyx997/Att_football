@@ -69,9 +69,9 @@ def calc_reward(rew, att_rew, prev_obs, obs):
 
         if prev_owned_ball_team == 1 and owned_ball_team != 0:
             active_dis_to_ball = np.linalg.norm(np.array(obs['left_team'][active] - obs['ball'][:-1]), axis=0, keepdims=True)
-            if active_dis_to_ball <= 0.06:
+            if active_dis_to_ball <= 0.03:
                 not_owned_ball_reward = 0
-            elif active_dis_to_ball > 0.06:
+            elif active_dis_to_ball > 0.03:
                 not_owned_ball_reward = -5*float(active_dis_to_ball)
 
         elif owned_ball_team == 0 and prev_owned_ball_team == 1 and owned_ball_player != 0:
