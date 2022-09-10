@@ -137,13 +137,13 @@ if __name__ == '__main__':
         "summary_game_window" : 10, 
         "model_save_interval" : 300000,  # number of gradient updates bewteen saving model
 
-        "trained_model_path" : "logs/[09-08]10.50.10_conv1d_basic_def/model_1200384.tar", # use when you want to continue traning from given model.
+        "trained_model_path" : "logs/[09-09]15.24.09_conv1d_basic_def/model_3301056.tar", # use when you want to continue traning from given model.
         "latest_ratio" : 0.5, # works only for self_play training. 
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
         "encoder" : "encoder_basic",
-        "rewarder" : "rewarder_att7_3",
+        "rewarder" : "rewarder_att7_4",
         "model" : "conv1d",
         "algorithm" : "ppo_with_lstm",
         "tmux": "football2",
