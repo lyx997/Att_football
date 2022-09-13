@@ -37,6 +37,7 @@ class Algo():
                 player_att_entropy = torch.diagonal(torch.bmm(player_att, player_att_log.permute(0,2,1)), dim1=1, dim2=2)
 
                 
+                #att_loss = F.smooth_l1_loss(player_att, label_player_att)
                 att_loss = F.mse_loss(player_att, label_player_att)
                 att_entropy_loss = -1*self.entropy_coef*player_att_entropy
                 loss = att_loss + att_entropy_loss.mean() 

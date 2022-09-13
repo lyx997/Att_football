@@ -16,9 +16,9 @@ class Model(nn.Module):
 
         self.arg_dict = arg_dict
 
-        self.fc_player_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
-        self.fc_left_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
-        self.fc_right_state = nn.Linear(arg_dict["feature_dims"]["player_state"],48)
+        self.fc_player_state = nn.Linear(arg_dict["rw_feature_dims"]["player_state"],48)
+        self.fc_left_state = nn.Linear(arg_dict["rw_feature_dims"]["player_state"],48)
+        self.fc_right_state = nn.Linear(arg_dict["rw_feature_dims"]["player_state"],48)
         
         #multi head attention Q, K, V
         self.fc_q1_offence = nn.Linear(48, 48, bias=False)

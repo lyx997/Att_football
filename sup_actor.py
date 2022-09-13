@@ -381,6 +381,7 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"] #-1
                 ball_owned_player = obs["ball_owned_player"]
+                ball_x = obs["ball"][0]
 
                 left_active_x, left_active_y = obs["left_team"][active[0]]
                 right_active_x, right_active_y = obs["right_team"][active[1]]
@@ -389,10 +390,10 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 dis_right_to_ball = np.linalg.norm([ball_x-right_active_x, ball_y-right_active_y])
                 dis_to_ball = [dis_left_to_ball, dis_right_to_ball]
 
-                if dis_to_ball[0] < 0.02 and dis_to_ball[0] < dis_to_ball[1]:
+                if dis_to_ball[0] < 0.03 and dis_to_ball[0] < dis_to_ball[1]:
                     ball_owned_team = 0
                     ball_owned_player = active[0]
-                elif dis_to_ball[1] < 0.02 and dis_to_ball[1] < dis_to_ball[0]:
+                elif dis_to_ball[1] < 0.03 and dis_to_ball[1] < dis_to_ball[0]:
                     ball_owned_team = 1
                     ball_owned_player = active[1]
             
@@ -433,8 +434,9 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     labeled = False
                 else:
                     if not pass_or_not: #pass
-                        labeled = True
-                        state_dict["label_left_att"][0,active[0]] = 1.0
+                        if ball_x > -0.2:
+                            labeled = True
+                            state_dict["label_left_att"][0,active[0]] = 1.0
                         #if first_dribble:
                             #pass_len = len(rollout_off) - first_dribble
                             #if pass_len > 10:
@@ -443,11 +445,11 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                             #    rollout_off[-(i+1)]["label_left_att"][0, active[0]] = 1.0
                             #    rollout_off[-(i+1)]["label_left_att"][0, prev_ball_owned_player] = 0.0
 
-                        pass_or_not = True
-                        first_dribble = None
-                        off_steps += 1
-                        if active[0] == most_att_idx:
-                            off_acc += 1
+                            pass_or_not = True
+                            first_dribble = None
+                            off_steps += 1
+                            if active[0] == most_att_idx:
+                                off_acc += 1
                     else:
                         first_dribble = None
                         labeled = False
@@ -494,6 +496,7 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"] #-1
                 ball_owned_player = obs["ball_owned_player"]
+                ball_x = obs["ball"][0]
 
                 left_active_x, left_active_y = obs["left_team"][active[0]]
                 right_active_x, right_active_y = obs["right_team"][active[1]]
@@ -502,10 +505,10 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                 dis_right_to_ball = np.linalg.norm([ball_x-right_active_x, ball_y-right_active_y])
                 dis_to_ball = [dis_left_to_ball, dis_right_to_ball]
 
-                if dis_to_ball[0] < 0.02 and dis_to_ball[0] < dis_to_ball[1]:
+                if dis_to_ball[0] < 0.03 and dis_to_ball[0] < dis_to_ball[1]:
                     ball_owned_team = 0
                     ball_owned_player = active[0]
-                elif dis_to_ball[1] < 0.02 and dis_to_ball[1] < dis_to_ball[0]:
+                elif dis_to_ball[1] < 0.03 and dis_to_ball[1] < dis_to_ball[0]:
                     ball_owned_team = 1
                     ball_owned_player = active[1]
             
@@ -545,21 +548,22 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     labeled = False
                 else:
                     if not pass_or_not:
-                        labeled = True
-                        state_dict["label_right_att"][0,active[1]] = 1.0
-                        #if first_dribble:
-                            #pass_len = len(rollout_def) - first_dribble
-                            #if pass_len > 10:
-                            #    pass_len = 10
-                            #for i in range(pass_len):
-                            #    rollout_def[-(i+1)]["label_right_att"][0, active[1]] = 1.0
-                            #    rollout_def[-(i+1)]["label_right_att"][0, prev_ball_owned_player] = 0.0
+                        if ball_x < 0.2:
+                            labeled = True
+                            state_dict["label_right_att"][0,active[1]] = 1.0
+                            #if first_dribble:
+                                #pass_len = len(rollout_def) - first_dribble
+                                #if pass_len > 10:
+                                #    pass_len = 10
+                                #for i in range(pass_len):
+                                #    rollout_def[-(i+1)]["label_right_att"][0, active[1]] = 1.0
+                                #    rollout_def[-(i+1)]["label_right_att"][0, prev_ball_owned_player] = 0.0
 
-                        pass_or_not = True
-                        first_dribble = None
-                        def_steps += 1
-                        if active[1] == most_att_idx:
-                            def_acc += 1
+                            pass_or_not = True
+                            first_dribble = None
+                            def_steps += 1
+                            if active[1] == most_att_idx:
+                                def_acc += 1
                     else:
                         first_dribble = None
                         labeled = False

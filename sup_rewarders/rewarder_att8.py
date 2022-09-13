@@ -89,6 +89,6 @@ def calc_reward(rew, att_rew, prev_obs, obs):
             change_ball_owned_reward = 1.0
 
 
-    reward = 5.0*win_reward + 5.0*rew + 0.1*yellow_r + 0.001*ball_position_r + 0.1*att_rew + 0.01*change_ball_owned_reward + 0.01*not_owned_ball_reward
+    reward = 5.0*win_reward + 5.0*rew + 0.1*yellow_r + 0.001*ball_position_r + 0.0*att_rew + 0.0*change_ball_owned_reward + 0.00*not_owned_ball_reward
         
     return reward, good_pass_counts

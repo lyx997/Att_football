@@ -146,7 +146,7 @@ if __name__ == '__main__':
         "gamma" : 0.99,
         "lmbda" : 0.96,
         "entropy_coef" : 0.0,
-        "attention_coef" : 0.01,
+        "attention_coef" : 0.0,
         "grad_clip" : 3.0,
         "eps_clip" : 0.1,
 
@@ -159,15 +159,15 @@ if __name__ == '__main__':
         "latest_n_model" : 10, # works only for self_play training. 
         "print_mode" : False,
 
-        "encoder_off" : "att_encoder",
-        "encoder_def" : "att_encoder",
+        "encoder_off" : "att_encoder2",
+        "encoder_def" : "att_encoder2",
         "rewarder" : "",
         "model_off" : "att_off2",
         "model_def" : "att_def2",
         "algorithm" : "supervised_lr",
 
         "env_evaluation":'',  # for evaluation of self-play trained agent (like validation set in Supervised Learning)
-        "tmux":"football1"
+        "tmux":"football3"
     }
     
     main(arg_dict)

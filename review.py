@@ -10,7 +10,7 @@ import gfootball.env as footballenv
 from sup_models.att_off2 import Model as Offence
 from sup_models.att_def2 import Model as Defence
 
-from sup_encoders.att_encoder import FeatureEncoder as FE, state_to_tensor as stt
+from sup_encoders.att_encoder2 import FeatureEncoder as FE, state_to_tensor as stt
 from datetime import datetime, timedelta
 
 if os.path.exists('log.txt'):
@@ -24,8 +24,8 @@ args = parser.parse_args()
 
 arg_dict = {
     "learning_rate" : 0.0002,
-    "off_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/off/model_off_3002880.tar",
-    "def_model_path" : "logs/[09-06]21.42.41_gat_conv_seperate_/def/model_def_3002880.tar",
+    "off_model_path" : "logs/[09-13]12.51.19_gat_conv_seperate_/off/model_off_1201152.tar",
+    "def_model_path" : "logs/[09-13]12.51.19_gat_conv_seperate_/def/model_def_1201152.tar",
 
 }
 
@@ -98,7 +98,7 @@ while True:
                 #    active_idx = [obs[0]["active"]]
                 #    team_att_idx, opp_att_idx = split_att_def_idx(attack_att, defence_att, active_idx, opp_num)
                 #    #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
-                state_dict = fe_off.encode(obs)
+                state_dict, opp_num = fe_off.encode(obs)
                 state_dict_tensor = stt(state_dict)
                 with torch.no_grad():
                     left_att_idx, right_att_idx = model_off(state_dict_tensor)
@@ -185,7 +185,7 @@ while True:
                 #    active_idx = [obs[0]["active"]]
                 #    team_att_idx, opp_att_idx = split_att_def_idx(attack_att, defence_att, active_idx, opp_num)
                 #    #team_att_idx, opp_att_idx = split_att_def_idx_(attack_att, defence_att, active_idx)
-                state_dict = fe_def.encode(obs)
+                state_dict, opp_num = fe_def.encode(obs)
                 state_dict_tensor = stt(state_dict)
                 with torch.no_grad():
                     right_att_idx, left_att_idx = model_def(state_dict_tensor)

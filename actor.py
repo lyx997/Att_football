@@ -538,7 +538,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
     fe_rw_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rw"])
     rewarder = importlib.import_module("sup_rewarders." + arg_dict["rewarder"])
     imported_rw_off_model = importlib.import_module("sup_models." + arg_dict["rw_off_model"])
-    imported_rw_def_model = importlib.import_module("sup_models." + arg_dict["rw_def_model"])
+    #imported_rw_def_model = importlib.import_module("sup_models." + arg_dict["rw_def_model"])
     imported_rl_model = importlib.import_module("sup_models." + arg_dict["rl_model"])
     
     fe_rl = fe_rl_module.FeatureEncoder()
@@ -551,9 +551,9 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
     rew_off_model = imported_rw_off_model.Model(arg_dict)
     rew_off_model.load_state_dict(rw_off_checkpoint['model_state_dict'])
 
-    rw_def_checkpoint = torch.load(arg_dict["rew_model_def_path"], map_location=cpu_device)
-    rew_def_model = imported_rw_def_model.Model(arg_dict)
-    rew_def_model.load_state_dict(rw_def_checkpoint['model_state_dict'])
+    #rw_def_checkpoint = torch.load(arg_dict["rew_model_def_path"], map_location=cpu_device)
+    #rew_def_model = imported_rw_def_model.Model(arg_dict)
+    #rew_def_model.load_state_dict(rw_def_checkpoint['model_state_dict'])
 
     rl_model = imported_rl_model.Model(arg_dict)
     rl_model.load_state_dict(center_model.state_dict())
@@ -583,6 +583,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
         prev_obs = [[]]
         prev_ball_owned_team = None 
         att_rew = 0
+        ball_x = obs[0]["ball"][0]
 
         done = False
         steps, score, tot_reward, tot_good_pass, win = 0, 0, 0, 0, 0
@@ -604,18 +605,19 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
             wait_t += time.time() - init_t
 
             h_in = h_out
-            state_dict, opp_num = fe_rl.encode(obs[0])
-            rl_state_dict_tensor = rl_state_to_tensor(state_dict, h_in)
-            rw_state_dict_tensor = rw_state_to_tensor(state_dict)
+            rl_state_dict = fe_rl.encode(obs[0])
+            rw_state_dict, opp_num = fe_rw.encode(obs[0])
+            rl_state_dict_tensor = rl_state_to_tensor(rl_state_dict, h_in)
+            rw_state_dict_tensor = rw_state_to_tensor(rw_state_dict)
             
             t1 = time.time()
             with torch.no_grad():
                 a_prob, m_prob, _, h_out = rl_model(rl_state_dict_tensor)
 
-                if prev_ball_owned_team == 0:
+                if prev_ball_owned_team == 0 and ball_x > -0.2:
                     left_att_idx, _ = rew_off_model(rw_state_dict_tensor)
-                elif prev_ball_owned_team == 1:
-                    right_att_idx, _ = rew_def_model(rw_state_dict_tensor)
+                #elif prev_ball_owned_team == 1:
+                #    right_att_idx, _ = rew_def_model(rw_state_dict_tensor)
 
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
@@ -628,14 +630,14 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
 
             active = obs[0]["active"]
 
-            if prev_ball_owned_team == 0:
+            if prev_ball_owned_team == 0 and ball_x > -0.2:
                 att_rew = float(left_att_idx[0,active])
                 if att_rew < 0.3:
                     att_rew = 0
-            elif prev_ball_owned_team == 1:
-                att_rew = -0.1*float(right_att_idx[0,opp_num])
-                #if att_rew > -0.15:
-                #    att_rew = 0
+            #elif prev_ball_owned_team == 1:
+            #    att_rew = -0.1*float(right_att_idx[0,opp_num])
+            #    #if att_rew > -0.15:
+            #    #    att_rew = 0
             else:
                 att_rew = 0
 
@@ -644,17 +646,18 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
                 prev_obs = [[]]
 
             fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
-            state_prime_dict, _ = fe_rl.encode(obs[0])
+            state_prime_dict = fe_rl.encode(obs[0])
 
+            ball_x = obs[0]["ball"][0]
             if obs[0]["ball_owned_team"] != -1:
                 prev_obs = obs
                 prev_ball_owned_team = obs[0]["ball_owned_team"]
             
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
-            state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
+            rl_state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
             state_prime_dict["hidden"] = (h1_out.numpy(), h2_out.numpy())
-            transition = (state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
+            transition = (rl_state_dict, a, m, fin_r, state_prime_dict, prob, done, need_m)
             rollout.append(transition)
             if len(rollout) == arg_dict["rollout_len"]:
                 data_queue.put(rollout)
@@ -743,8 +746,6 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
                 a_prob, m_prob, _, h_out = model(state_dict_tensor)
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
-
-            prev_obs = obs
 
             if our_team == 0:
                 obs, rew, done, info = env_left.att_step(real_action,[[],[],[]])

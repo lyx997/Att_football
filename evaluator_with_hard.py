@@ -1,3 +1,4 @@
+from cv2 import _OutputArray_DEPTH_MASK_FLT
 import gfootball.env as football_env
 import time, pprint, importlib, random
 import numpy as np
@@ -102,9 +103,11 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             wait_t += time.time() - init_t
 
             h_in = h_out
-            state_dict, opp_num = fe_rl.encode(obs[0])
-            rl_state_dict_tensor = rl_state_to_tensor(state_dict, h_in)
-            rw_state_dict_tensor = rw_state_to_tensor(state_dict)
+            rl_state_dict = fe_rl.encode(obs[0])
+            rl_state_dict_tensor = rl_state_to_tensor(rl_state_dict, h_in)
+
+            rw_state_dict, opp_num = fe_rw.encode(obs[0])
+            rw_state_dict_tensor = rw_state_to_tensor(rw_state_dict)
             
             t1 = time.time()
             with torch.no_grad():
@@ -134,7 +137,7 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
                 prev_obs = [[]]
 
             fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
-            state_prime_dict, opp_num = fe_rl.encode(obs[0])
+            state_prime_dict = fe_rl.encode(obs[0])
 
             if obs[0]["ball_owned_team"] != -1:
                 prev_obs = obs
@@ -142,7 +145,7 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
-            state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
+            rl_state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())
             state_prime_dict["hidden"] = (h1_out.numpy(), h2_out.numpy())
 
             steps += 1
@@ -198,6 +201,8 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             env_right.reset()   
             obs = env_right.observation()
             our_team = 1
+        
+        prev_obs = [[]]
         done = False
         steps, score, tot_reward, tot_good_pass, win = 0, 0, 0, 0, 0
         n_epi += 1
@@ -236,16 +241,21 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
             #opp_real_action, opp_a, opp_m, opp_need_m, opp_prob, opp_prob_selected_a, opp_prob_selected_m = get_action(opp_a_prob, opp_m_prob)
 
-            prev_obs = obs
             if our_team == 0:
                 obs, rew, done, info = env_left.att_step([real_action],[[],[],[]])
             else:
                 obs, rew, done, info = env_right.att_step([real_action],[[],[],[]])
 
             rew = rew[0]
+            if rew != 0:
+                prev_obs = [[]]
+
             fin_r, good_pass_counts = rewarder.calc_reward(rew, 0, prev_obs[0], obs[0])
             state_prime_dict = fe1.encode(obs[0])
             
+            if obs[0]["ball_owned_team"] != -1:
+                prev_obs = obs
+
             (h1_in, h2_in) = h_in
             (h1_out, h2_out) = h_out
             state_dict["hidden"] = (h1_in.numpy(), h2_in.numpy())

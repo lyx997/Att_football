@@ -29,11 +29,11 @@ class FeatureEncoder:
 
     def get_feature_dims(self):
         dims = {
-            'player_state':18,
-            'opp_state':18,
-            'ball_state':18,
-            'left_team_state':18,
-            'right_team_state':18,
+            'player_state':8,
+            'opp_state':8,
+            'ball_state':8,
+            'left_team_state':8,
+            'right_team_state':8,
         }
         return dims
 
@@ -80,23 +80,23 @@ class FeatureEncoder:
             right_ball_owned_onehot[opp_num, 0] = 1.0
             ball_owned_onehot[0:2] = 1.0
 
-        ball_state = np.concatenate((obs['ball'][:-1], obs['ball_direction'][:-1]*20, ball_role_onehot, ball_owned_onehot, [0.]))#18
-        player_state = np.concatenate((obs['left_team'][player_num], player_direction*100, player_role_onehot[0], left_ball_owned_onehot[player_num], [player_tired]))#18
-        opp_state = np.concatenate((obs['right_team'][opp_num], opp_direction*100, opp_role_onehot[0], right_ball_owned_onehot[opp_num], [opp_tired]))#18
+        ball_state = np.concatenate((obs['ball'][:-1]*2, obs['ball_direction'][:-1]*20, ball_owned_onehot, [0.]))#18
+        player_state = np.concatenate((obs['left_team'][player_num]*2, player_direction*100, left_ball_owned_onehot[player_num], [player_tired]))#18
+        opp_state = np.concatenate((obs['right_team'][opp_num]*2, opp_direction*100, right_ball_owned_onehot[opp_num], [opp_tired]))#18
 
         obs_left_team = np.array(obs['left_team'])
         obs_left_team_direction = np.array(obs['left_team_direction'])
         left_role = obs["left_team_roles"]
         left_role_onehot = self._encode_role_onehot(left_role)
         left_team_tired = np.array(obs['left_team_tired_factor']).reshape(-1,1)
-        left_team_state = np.concatenate((obs_left_team, obs_left_team_direction*100, left_role_onehot, left_ball_owned_onehot, left_team_tired), axis=1) #18
+        left_team_state = np.concatenate((obs_left_team*2, obs_left_team_direction*100, left_ball_owned_onehot, left_team_tired), axis=1) #18
 
         obs_right_team = np.array(obs['right_team'])
         obs_right_team_direction = np.array(obs['right_team_direction'])
         right_role = obs["right_team_roles"]
         right_role_onehot = self._encode_role_onehot(right_role)
         right_team_tired = np.array(obs['right_team_tired_factor']).reshape(-1,1)
-        right_team_state = np.concatenate((obs_right_team, obs_right_team_direction*100, right_role_onehot, right_ball_owned_onehot, right_team_tired), axis=1) #18                                  
+        right_team_state = np.concatenate((obs_right_team*2, obs_right_team_direction*100, right_ball_owned_onehot, right_team_tired), axis=1) #18                                  
 
         right_team_distance_to_left, left_team_distance_to_right = [], []
         obs_player = np.array(obs['left_team'][player_num]).reshape(1, -1)
@@ -129,7 +129,7 @@ class FeatureEncoder:
                       'match_situation':match_situation,
                       }
 
-        return state_dict
+        return state_dict, opp_num
 
     def _get_score(self, score):
         left_score = score[0]

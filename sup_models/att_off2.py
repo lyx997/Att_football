@@ -29,6 +29,7 @@ class Model(nn.Module):
         self.fc_k2_offence = nn.Linear(96, 96, bias=False)
 
         self.norm_state = nn.LayerNorm(48)
+
         self.optimizer = optim.Adam(self.parameters(), lr=arg_dict["learning_rate"])
         
     def forward(self, state_dict):
@@ -38,7 +39,7 @@ class Model(nn.Module):
         right_team_state = state_dict["right_team_state"]  
         
         player_state_embed = F.relu(self.norm_state(self.fc_player_state(player_state)))
-        left_team_state_embed = F.relu(self.norm_state(self.fc_left_state(left_team_state)))  
+        left_team_state_embed = F.relu(self.norm_state(self.fc_left_state(left_team_state)))
         right_team_state_embed = F.relu(self.norm_state(self.fc_right_state(right_team_state)))
         
         [batch, dim] = player_state_embed.size()

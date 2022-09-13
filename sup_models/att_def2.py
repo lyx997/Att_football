@@ -27,8 +27,8 @@ class Model(nn.Module):
 
         self.fc_q2_defence = nn.Linear(96, 96, bias=False)
         self.fc_k2_defence = nn.Linear(96, 96, bias=False)
-
         self.norm_state = nn.LayerNorm(48)
+
         self.optimizer = optim.Adam(self.parameters(), lr=arg_dict["learning_rate"])
         
     def forward(self, state_dict):
