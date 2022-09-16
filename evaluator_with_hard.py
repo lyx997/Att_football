@@ -106,7 +106,7 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             rl_state_dict = fe_rl.encode(obs[0])
             rl_state_dict_tensor = rl_state_to_tensor(rl_state_dict, h_in)
 
-            rw_state_dict, opp_num = fe_rw.encode(obs[0])
+            rw_state_dict = fe_rw.encode(obs[0])
             rw_state_dict_tensor = rw_state_to_tensor(rw_state_dict)
             
             t1 = time.time()
@@ -121,9 +121,9 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
 
 
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step(real_action,[[],[],[]])
+                obs, rew, done, info = env_left.step(real_action)
             else:
-                obs, rew, done, info = env_right.att_step(real_action,[[],[],[]])
+                obs, rew, done, info = env_right.step(real_action)
 
             active = obs[0]["active"]
 
@@ -132,11 +132,11 @@ def sup_evaluator(center_model, signal_queue, summary_queue, arg_dict):
             else:
                 att_rew = 0
 
-            rew=rew[0]
+            #rew=rew[0]
             if rew != 0:
                 prev_obs = [[]]
 
-            fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0], None)
             state_prime_dict = fe_rl.encode(obs[0])
 
             if obs[0]["ball_owned_team"] != -1:
@@ -242,11 +242,11 @@ def evaluator(center_model, signal_queue, summary_queue, arg_dict):
             #opp_real_action, opp_a, opp_m, opp_need_m, opp_prob, opp_prob_selected_a, opp_prob_selected_m = get_action(opp_a_prob, opp_m_prob)
 
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step([real_action],[[],[],[]])
+                obs, rew, done, info = env_left.step([real_action])
             else:
-                obs, rew, done, info = env_right.att_step([real_action],[[],[],[]])
+                obs, rew, done, info = env_right.step([real_action])
 
-            rew = rew[0]
+            #rew = rew[0]
             if rew != 0:
                 prev_obs = [[]]
 

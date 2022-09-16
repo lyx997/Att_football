@@ -14,30 +14,10 @@ import math
 
 from datetime import datetime, timedelta
 
-#from encoders.encoder_gat import state_to_tensor
-def find_most_att_idx(player_att2_idx, opp_att2_idx, active_idx, opp_idx):
-    player_att2_idx = player_att2_idx.squeeze().squeeze()
-    opp_att2_idx = opp_att2_idx.squeeze().squeeze()
+def find_most_att_idx(player_att2_idx):
+    player_att2_idx = player_att2_idx.squeeze()
     player_most_att_idx = player_att2_idx.sort(descending=True)[1][0]
-    most_att = player_att2_idx[player_most_att_idx]
-    opp_most_att_idx = opp_att2_idx.sort(descending=True)[1][0]
-    opp_most_att = opp_att2_idx[opp_most_att_idx]
-    if active_idx <= player_most_att_idx:
-        player_most_att_idx += 1
-    if opp_idx <= opp_most_att_idx:
-        opp_most_att_idx += 1
-    player_att_idx = [player_most_att_idx]
-    opp_att_idx = [opp_most_att_idx]
-    return player_att_idx, opp_att_idx, most_att, opp_most_att
-#def find_most_att_idx(player_att2_idx, active_idx):
-#    player_att2_idx = player_att2_idx.squeeze().squeeze()
-#    most_att_idx = player_att2_idx.sort(descending=True)[1][0]
-#    most_att = player_att2_idx[most_att_idx]
-#    if active_idx <= most_att_idx:
-#        most_att_idx += 1
-#    att_idx = [most_att_idx]
-#  
-#    return att_idx, most_att
+    return int(player_most_att_idx)
 
 def split_att_idx(all_sorted_idx):
     team_att_idx_list = []
@@ -538,7 +518,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
     fe_rw_module = importlib.import_module("sup_encoders." + arg_dict["encoder_rw"])
     rewarder = importlib.import_module("sup_rewarders." + arg_dict["rewarder"])
     imported_rw_off_model = importlib.import_module("sup_models." + arg_dict["rw_off_model"])
-    #imported_rw_def_model = importlib.import_module("sup_models." + arg_dict["rw_def_model"])
+    imported_rw_def_model = importlib.import_module("sup_models." + arg_dict["rw_def_model"])
     imported_rl_model = importlib.import_module("sup_models." + arg_dict["rl_model"])
     
     fe_rl = fe_rl_module.FeatureEncoder()
@@ -551,9 +531,9 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
     rew_off_model = imported_rw_off_model.Model(arg_dict)
     rew_off_model.load_state_dict(rw_off_checkpoint['model_state_dict'])
 
-    #rw_def_checkpoint = torch.load(arg_dict["rew_model_def_path"], map_location=cpu_device)
-    #rew_def_model = imported_rw_def_model.Model(arg_dict)
-    #rew_def_model.load_state_dict(rw_def_checkpoint['model_state_dict'])
+    rw_def_checkpoint = torch.load(arg_dict["rew_model_def_path"], map_location=cpu_device)
+    rew_def_model = imported_rw_def_model.Model(arg_dict)
+    rew_def_model.load_state_dict(rw_def_checkpoint['model_state_dict'])
 
     rl_model = imported_rl_model.Model(arg_dict)
     rl_model.load_state_dict(center_model.state_dict())
@@ -584,6 +564,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
         prev_ball_owned_team = None 
         att_rew = 0
         ball_x = obs[0]["ball"][0]
+        opp_num = None
 
         done = False
         steps, score, tot_reward, tot_good_pass, win = 0, 0, 0, 0, 0
@@ -606,7 +587,7 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
 
             h_in = h_out
             rl_state_dict = fe_rl.encode(obs[0])
-            rw_state_dict, opp_num = fe_rw.encode(obs[0])
+            rw_state_dict = fe_rw.encode(obs[0])
             rl_state_dict_tensor = rl_state_to_tensor(rl_state_dict, h_in)
             rw_state_dict_tensor = rw_state_to_tensor(rw_state_dict)
             
@@ -616,17 +597,18 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
 
                 if prev_ball_owned_team == 0 and ball_x > -0.2:
                     left_att_idx, _ = rew_off_model(rw_state_dict_tensor)
-                #elif prev_ball_owned_team == 1:
-                #    right_att_idx, _ = rew_def_model(rw_state_dict_tensor)
+                elif prev_ball_owned_team == 1:
+                    right_att_idx, _ = rew_def_model(rw_state_dict_tensor)
+                    opp_num = find_most_att_idx(right_att_idx)
 
             forward_t += time.time()-t1 
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
 
 
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step(real_action,[[],[],[]])
+                obs, rew, done, info = env_left.step(real_action)
             else:
-                obs, rew, done, info = env_right.att_step(real_action,[[],[],[]])
+                obs, rew, done, info = env_right.step(real_action)
 
             active = obs[0]["active"]
 
@@ -641,11 +623,11 @@ def sup_rl_actor(actor_num, center_model, data_queue, signal_queue, summary_queu
             else:
                 att_rew = 0
 
-            rew=rew[0]
+            #rew=rew[0]
             if rew != 0:
                 prev_obs = [[]]
 
-            fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0])
+            fin_r, good_pass_counts = rewarder.calc_reward(rew, att_rew, prev_obs[0], obs[0], opp_num)
             state_prime_dict = fe_rl.encode(obs[0])
 
             ball_x = obs[0]["ball"][0]
@@ -748,11 +730,11 @@ def actor(actor_num, center_model, data_queue, signal_queue, summary_queue, arg_
             real_action, a, m, need_m, prob, prob_selected_a, prob_selected_m = get_action(a_prob, m_prob)
 
             if our_team == 0:
-                obs, rew, done, info = env_left.att_step(real_action,[[],[],[]])
+                obs, rew, done, info = env_left.step(real_action)
             else:
-                obs, rew, done, info = env_right.att_step(real_action,[[],[],[]])
+                obs, rew, done, info = env_right.step(real_action)
 
-            rew=rew[0]
+            #rew=rew[0]
             if rew != 0:
                 prev_obs = [[]]
 
