@@ -886,9 +886,9 @@ def actor_self(actor_num, center_model, data_queue, signal_queue, summary_queue,
                 highpass = True
 
             if seed < 0.5:
-                [obs, opp_obs], [rew, _], done, info = env_left.att_step([real_action, opp_real_action], [[],[]])
+                [obs, opp_obs], [rew, _], done, info = env_left.step([real_action, opp_real_action])
             else:
-                [opp_obs, obs], [_, rew], done, info = env_right.att_step([opp_real_action, real_action], [[],[]])
+                [opp_obs, obs], [_, rew], done, info = env_right.step([opp_real_action, real_action])
 
             #opp_active = opp_obs["active"]
 

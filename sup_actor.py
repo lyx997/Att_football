@@ -370,14 +370,14 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     prev_ball_owned_team = ball_owned_team
                     prev_ball_owned_player = ball_owned_player
                
-                state_dict = fe_off.encode(obs)
+                state_dict, _ = fe_off.encode(obs)
                 state_dict_tensor = off_state_to_tensor(state_dict)
 
                 with torch.no_grad():
                     left_att_idx, right_att_idx = model_off(state_dict_tensor)
                     most_att_idx = find_most_att_idx(left_att_idx)
                 
-                [obs, opp_obs], [rew, _], done, info = env.att_step([19,19], [[],[],[]])
+                [obs, opp_obs], [rew, _], done, info = env.step([19,19])
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"] #-1
                 ball_owned_player = obs["ball_owned_player"]
@@ -485,14 +485,14 @@ def seperate_actor(actor_num, center_model, data_queue, signal_queue, summary_qu
                     prev_ball_owned_team = ball_owned_team
                     prev_ball_owned_player = ball_owned_player
 
-                state_dict = fe_def.encode(obs)
+                state_dict, _ = fe_def.encode(obs)
                 state_dict_tensor = def_state_to_tensor(state_dict)
 
                 with torch.no_grad():
                     right_att_idx, left_att_idx = model_def(state_dict_tensor)
                     most_att_idx = find_most_att_idx(right_att_idx)
                 
-                [obs, opp_obs], [rew, _], done, info = env.att_step([19,19], [[],[],[]])
+                [obs, opp_obs], [rew, _], done, info = env.step([19,19])
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"] #-1
                 ball_owned_player = obs["ball_owned_player"]

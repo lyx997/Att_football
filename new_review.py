@@ -104,7 +104,7 @@ while True:
                     left_att_idx, right_att_idx = model_off(state_dict_tensor)
                     most_att_idx = find_most_att_idx(left_att_idx)
 
-                [obs, opp_obs], [rew, _], done, info = env.att_step([19, 19], [most_att_idx,{"None":None}])
+                [obs, opp_obs], [rew, _], done, info = env.step([19, 19])
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"]
                 ball_owned_player = obs["ball_owned_player"]
@@ -191,7 +191,7 @@ while True:
                     right_att_idx, left_att_idx = model_def(state_dict_tensor)
                     most_att_idx = find_most_att_idx(right_att_idx)
 
-                [obs, opp_obs], [rew, _], done, info = env.att_step([19, 19], [{"None":None}, most_att_idx])
+                [obs, opp_obs], [rew, _], done, info = env.step([19, 19])
                 active = [obs["active"], opp_obs["active"]]
                 ball_owned_team = obs["ball_owned_team"]
                 ball_owned_player = obs["ball_owned_player"]
